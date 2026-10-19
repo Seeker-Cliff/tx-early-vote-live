@@ -1,0 +1,58 @@
+name: track
+
+# Every 30 minutes; the tracker itself decides which counties are due, using data/hours.csv.
+# Times are UTC. Central Daylight Time is UTC-5 for the whole early-voting window.
+on:
+  schedule:
+    - cron: "*/30 13-23 19-30 10 *"   # 8:00 AM - 6:30 PM CT, Oct 19-30
+    - cron: "*/30 0-4 20-31 10 *"     # 7:00 PM - 11:30 PM CT, Oct 19-30
+    - cron: "0 14-23 31 10 *"         # Oct 31: hourly, picks up the SOS Day 12 figure
+    - cron: "0 14-23 1-2 11 *"        # Nov 1-2: late SOS revisions
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: track
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+
+      - name: Scrape, validate, rebuild dashboard data
+        id: track
+        continue-on-error: true
+        run: python -m tracker.run all
+
+      - name: Open an issue for held readings
+        if: hashFiles('holds.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create --title "Held readings — $(TZ=America/Chicago date '+%b %-d, %-I:%M %p CT')" --body-file holds.md
+          rm holds.md
+
+      - name: Commit data
+        run: |
+          git config user.name "tx-early-vote-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data docs
+          if ! git diff --cached --quiet; then
+            git commit -m "data: $(TZ=America/Chicago date -Iseconds)"
+            git pull --rebase
+            git push
+          fi
+
+      - name: Fail visibly if the tracker errored
+        if: steps.track.outcome == 'failure'
+        run: exit 1

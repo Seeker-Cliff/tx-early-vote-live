@@ -1,0 +1,3 @@
+county,scraped_at,source_time,day_n,cum_in_person,locations_reporting,locations_total,source_url
+DALLAS,2026-10-19T14:23:52-05:00,2026-10-19T14:23:09-05:00,1,44378,84,84,https://experience.arcgis.com/experience/8204fc2e36cd4fac8729efcedd4fda7f/page/Page?views=Early-Voting
+TRAVIS,2026-10-19T14:24:34-05:00,2026-10-19T14:23:26-05:00,1,23672,,,https://updates.electionlink.net/widgets/travistx/2026-11-03/index.html
