@@ -1,18 +1,20 @@
 name: track
 
-# Every 30 minutes; the tracker itself decides which counties are due, using data/hours.csv.
-# Times are UTC. Central Daylight Time is UTC-5 for the whole early-voting window.
+# GitHub's cron scheduler is unreliable (it skipped every slot on Oct 19), so each run is a
+# long-lived loop: it runs the tracker every 10 minutes for ~5h45m, then re-dispatches itself.
+# The tracker decides which counties are due, using data/hours.csv, so extra loops are harmless.
+# The cron entries below only restart the chain if it ever breaks; the concurrency group keeps
+# at most one loop running and one waiting.
 on:
   schedule:
-    - cron: "*/30 13-23 19-30 10 *"   # 8:00 AM - 6:30 PM CT, Oct 19-30
-    - cron: "*/30 0-4 20-31 10 *"     # 7:00 PM - 11:30 PM CT, Oct 19-30
-    - cron: "0 14-23 31 10 *"         # Oct 31: hourly, picks up the SOS Day 12 figure
-    - cron: "0 14-23 1-2 11 *"        # Nov 1-2: late SOS revisions
+    - cron: "7 * 19-31 10 *"
+    - cron: "7 * 1-2 11 *"
   workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
+  actions: write
 
 concurrency:
   group: track
@@ -21,7 +23,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,30 +31,33 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
 
-      - name: Scrape, validate, rebuild dashboard data
-        id: track
-        continue-on-error: true
-        run: python -m tracker.run all
-
-      - name: Open an issue for held readings
-        if: hashFiles('holds.md') != ''
+      - name: Track every 10 minutes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh issue create --title "Held readings — $(TZ=America/Chicago date '+%b %-d, %-I:%M %p CT')" --body-file holds.md
-          rm holds.md
-
-      - name: Commit data
-        run: |
           git config user.name "tx-early-vote-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data docs
-          if ! git diff --cached --quiet; then
-            git commit -m "data: $(TZ=America/Chicago date -Iseconds)"
-            git pull --rebase
-            git push
-          fi
+          end=$((SECONDS + 20700))   # 5h45m, under the 6h job limit
+          while [ $SECONDS -lt $end ]; do
+            git pull --rebase --quiet || true
+            python -m tracker.run all || echo "::error::tracker run failed at $(TZ=America/Chicago date '+%-I:%M %p CT')"
+            if [ -s holds.md ]; then
+              gh issue create --title "Held readings — $(TZ=America/Chicago date '+%b %-d, %-I:%M %p CT')" --body-file holds.md || true
+              rm -f holds.md
+            fi
+            git add data docs
+            if ! git diff --cached --quiet; then
+              git commit -m "data: $(TZ=America/Chicago date -Iseconds)" --quiet
+              git pull --rebase --quiet && git push --quiet || echo "::warning::push failed; will retry next loop"
+            fi
+            sleep 600
+          done
 
-      - name: Fail visibly if the tracker errored
-        if: steps.track.outcome == 'failure'
-        run: exit 1
+      - name: Hand off to the next loop
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(TZ=America/Chicago date +%Y%m%d)" -le 20261102 ]; then
+            gh workflow run track.yml --ref main
+          fi
