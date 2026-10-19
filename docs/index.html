@@ -77,6 +77,8 @@ tr.held td{background:var(--held-bg)} tr.nodata td{background:var(--nodata-bg)}
 .notice.red{border-color:var(--nodata);background:var(--nodata-bg)}
 .foot{color:var(--muted);font-size:12.5px;line-height:1.6}
 .empty{color:var(--muted);font-size:13.5px;padding:18px 0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+td input[type=checkbox]{accent-color:var(--y2026);margin:0;cursor:pointer}
 .theme{margin-left:auto;border:1px solid var(--line);background:none;color:var(--muted);border-radius:6px;padding:3px 8px;font:inherit;font-size:12px;cursor:pointer}
 @media (max-width:860px){
   .wrap{grid-template-columns:1fr}
@@ -121,6 +123,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&
 const title = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
 let D, sel = "STATEWIDE", dayPick = null;
+let t2Mode = "reg", t2Off = new Set();   // intraday table: % column mode, unchecked counties
 
 // ---------- status ----------
 function status(c) {
@@ -351,14 +354,29 @@ function renderState(m) {
   h += `<div class="sub">Sum of all 254 counties from the Texas SOS end-of-day figures. Each comparison uses only counties with a valid figure in both years.</div>`;
   h += `<div class="grid"><div class="card now"><div class="k">In person, SOS</div><div class="v num">${row ? fmt(row.cum) : "—"}</div><div class="s">${row ? `through end of Day ${n} · ${row.counties} counties reported` : "Day 1 statewide figure posts tomorrow morning"}</div></div>${compareCards(null, true)}</div>`;
   const t2 = D.counties.filter(c => c.tier === 2);
-  h += `<div class="panel"><h3>Intraday counties right now</h3><table><tr><th>County</th><th>Status</th><th class="r">In person</th><th>As of</th>${YEARS.slice(0, 2).map(y => `<th class="r">${y} full day</th>`).join("")}</tr>
-    ${t2.map(c => { const r = c.intraday.readings.at(-1), st = status(c), d = r ? dayOf(r.t) : null;
-      return `<tr class="${st.kind === "ok" ? "" : st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "ok" ? "OK" : st.kind === "held" ? "HELD" : "NO DATA"}</td><td class="r num">${r ? fmt(r.cum) : "—"}</td><td>${r ? `Day ${d}, ${tfmt(r.t)}` : ""}</td>${YEARS.slice(0, 2).map(y => { const v = d ? hv(c, y, d) : null; return `<td class="r num">${v != null && r ? `${fmt(v)} <span style="color:var(--muted)">(${(r.cum / v * 100).toFixed(0)}%)</span>` : "—"}</td>`; }).join("")}</tr>`; }).join("")}</table></div>`;
+  // Selected = checked rows with a valid reading. Share uses each county's latest valid reading.
+  const on = c => !t2Off.has(c.name) && c.intraday.readings.length;
+  const selSum = t2.filter(on).reduce((a, c) => a + c.intraday.readings.at(-1).cum, 0);
+  const selReg = t2.filter(on).reduce((a, c) => a + c.registered, 0);
+  const share = t2Mode === "share";
+  const p1 = v => (v * 100).toFixed(1) + "%";
+  h += `<div class="panel"><h3>Intraday counties right now</h3>
+    <div class="chips" role="group" aria-label="Percentage column"><button data-mode="reg" aria-pressed="${!share}">% turnout of registered</button><button data-mode="share" aria-pressed="${share}">% share of selected counties</button></div>
+    <div class="hint">${share ? "Each county's share of in-person votes across the checked counties." : "In-person votes so far as a share of the county's registered voters."} Uses each county's latest valid reading; reading times differ by county.</div>
+    <table><tr><th><span class="sr">Include</span></th><th>County</th><th>Status</th><th class="r">In person</th><th class="r">${share ? "Share" : "% of reg."}</th><th>As of</th>${YEARS.slice(0, 2).map(y => `<th class="r">${y} full day</th>`).join("")}</tr>
+    ${t2.map(c => { const r = c.intraday.readings.at(-1), st = status(c), d = r ? dayOf(r.t) : null, inc = !t2Off.has(c.name);
+      const pc = !r ? "—" : share ? (inc && selSum ? p1(r.cum / selSum) : "—") : p1(r.cum / c.registered);
+      return `<tr class="${st.kind === "ok" ? "" : st.kind}"${inc ? "" : ' style="opacity:.5"'}><td><input type="checkbox" data-pick="${c.name}" ${inc ? "checked" : ""} aria-label="Include ${title(c.name)}"></td><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "ok" ? "OK" : st.kind === "held" ? "HELD" : "NO DATA"}</td><td class="r num">${r ? fmt(r.cum) : "—"}</td><td class="r num">${pc}</td><td>${r ? `Day ${d}, ${tfmt(r.t)}` : ""}</td>${YEARS.slice(0, 2).map(y => { const v = d ? hv(c, y, d) : null; return `<td class="r num">${v != null && r ? `${fmt(v)} <span style="color:var(--muted)">(${(r.cum / v * 100).toFixed(0)}%)</span>` : "—"}</td>`; }).join("")}</tr>`; }).join("")}
+    <tr style="font-weight:600"><td></td><td>Selected (${t2.filter(on).length})</td><td></td><td class="r num">${fmt(selSum)}</td><td class="r num">${share ? (selSum ? "100%" : "—") : (selReg ? p1(selSum / selReg) : "—")}</td><td colspan="3"></td></tr></table></div>`;
   h += `<div class="panel"><h3>By day of early voting</h3><div class="hint">Statewide SOS cumulative in-person votes. 2018 isn't drawn because the SOS only published the 30 largest counties that year.</div>${dailyChart(null, true)}</div>`;
   if (held.length || nod.length) h += `<div class="panel"><h3>Counties with held or missing data</h3><table><tr><th>County</th><th>Status</th><th>Detail</th></tr>${[...held, ...nod].map(c => { const st = status(c); return `<tr class="${st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "held" ? "HELD" : "NO DATA"}</td><td>${esc(st.kind === "held" ? st.items.map(i => i.reason).join("; ") : st.detail)}</td></tr>`; }).join("")}</table></div>`;
   h += foot();
+  const y0 = scrollY;
   m.innerHTML = h;
+  scrollTo(0, y0);
   m.querySelectorAll("a[data-k]").forEach(a => a.onclick = e => { e.preventDefault(); sel = a.dataset.k; dayPick = null; location.hash = sel; renderList(); render(); });
+  m.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { t2Mode = b.dataset.mode; render(); });
+  m.querySelectorAll("[data-pick]").forEach(b => b.onchange = () => { b.checked ? t2Off.delete(b.dataset.pick) : t2Off.add(b.dataset.pick); render(); });
 }
 
 function foot() {
