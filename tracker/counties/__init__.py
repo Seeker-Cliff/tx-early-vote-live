@@ -20,6 +20,6 @@ class SourceInconsistent(Exception):
     """The source contradicts itself (e.g. parts don't add up to its own total)."""
 
 
-from . import bell, dallas, montgomery, travis  # noqa: E402
+from . import bell, dallas, hays, montgomery, travis  # noqa: E402
 
-SCRAPERS = {m.NAME: m for m in (dallas, travis, montgomery, bell)}
+SCRAPERS = {m.NAME: m for m in (dallas, travis, montgomery, bell, hays)}
