@@ -1,1 +1,397 @@
-<!doctype html><meta charset="utf-8"><title>Texas Early Vote Live</title><p>Dashboard loading soon. Data: <a href="data.json">data.json</a></p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texas Early Vote Live</title>
+<meta name="description" content="2026 Texas early in-person turnout by county, compared with the same day of early voting in 2024, 2022 and 2018.">
+<style>
+:root{
+  --bg:#f7f6f2; --panel:#ffffff; --ink:#1b1d21; --muted:#5f646d; --faint:#8b9099; --line:#e3e1da; --grid:#eeece6;
+  --y2026:#1f4fd1; --y2024:#c2410c; --y2022:#0f766e; --y2018:#7c3aed;
+  --held:#b45309; --held-bg:#fff4e0; --nodata:#b91c1c; --nodata-bg:#fdecec; --ok:#15803d; --ok-bg:#e8f6ec;
+  --up:#15803d; --down:#b91c1c; --stripe:rgba(180,83,9,.16);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#121417; --panel:#1a1d21; --ink:#eceae4; --muted:#a3a8b0; --faint:#7c818a; --line:#2c3036; --grid:#23272c;
+  --y2026:#7aa2ff; --y2024:#fb923c; --y2022:#2dd4bf; --y2018:#b794f6;
+  --held:#f5a524; --held-bg:#2e2412; --nodata:#f87171; --nodata-bg:#331a1a; --ok:#4ade80; --ok-bg:#15291c;
+  --up:#4ade80; --down:#f87171; --stripe:rgba(245,165,36,.18);
+}}
+:root[data-theme="dark"]{
+  --bg:#121417; --panel:#1a1d21; --ink:#eceae4; --muted:#a3a8b0; --faint:#7c818a; --line:#2c3036; --grid:#23272c;
+  --y2026:#7aa2ff; --y2024:#fb923c; --y2022:#2dd4bf; --y2018:#b794f6;
+  --held:#f5a524; --held-bg:#2e2412; --nodata:#f87171; --nodata-bg:#331a1a; --ok:#4ade80; --ok-bg:#15291c;
+  --up:#4ade80; --down:#f87171; --stripe:rgba(245,165,36,.18);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;padding:18px 24px 14px;border-bottom:1px solid var(--line)}
+header h1{font-size:19px;margin:0;letter-spacing:-.01em}
+header .meta{color:var(--muted);font-size:13px}
+.wrap{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 60px)}
+aside{border-right:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:10px;position:sticky;top:0;height:100vh;overflow:hidden}
+aside input,aside select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);font:inherit}
+.list{overflow:auto;flex:1;margin:0 -6px;padding:0 6px}
+.list button{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:6px 8px;border:0;border-radius:6px;background:none;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.list button:hover{background:var(--grid)}
+.list button[aria-current="true"]{background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);font-weight:600}
+.list .grp{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);padding:10px 8px 4px}
+.tag{font-size:10.5px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.held{background:var(--held)} .dot.nodata{background:var(--nodata)}
+main{padding:22px 28px 60px;max-width:1120px;width:100%;min-width:0}
+.panel{overflow-x:auto}
+.title{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:4px}
+.title h2{font-size:28px;margin:0;letter-spacing:-.02em}
+.sub{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.badge{font-size:12px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:5px}
+.badge.ok{color:var(--ok);background:var(--ok-bg)} .badge.held{color:var(--held);background:var(--held-bg)} .badge.nodata{color:var(--nodata);background:var(--nodata-bg)}
+.badge.flag{color:var(--held);background:transparent;border:1px dashed var(--held)}
+.grid{display:grid;grid-template-columns:minmax(220px,1.1fr) repeat(3,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card.held{border:2px solid var(--held)} .card.nodata{border:2px solid var(--nodata)}
+.card .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.card .v{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:2px 0}
+.card.held .v{color:var(--faint)}
+.card .s{font-size:12.5px;color:var(--muted)}
+.cmp .v{font-size:22px}
+.delta{font-weight:700} .delta.up{color:var(--up)} .delta.down{color:var(--down)}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.panel h3{font-size:14px;margin:0 0 2px} .panel .hint{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.chips button{border:1px solid var(--line);background:none;color:var(--ink);border-radius:999px;padding:3px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{fill:var(--muted);font-size:11px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)} th{color:var(--muted);font-weight:600;font-size:12px}
+td.r,th.r{text-align:right}
+tr.held td{background:var(--held-bg)} tr.nodata td{background:var(--nodata-bg)}
+.notice{border-left:3px solid var(--held);background:var(--held-bg);padding:10px 12px;border-radius:0 8px 8px 0;font-size:13.5px;margin-bottom:16px}
+.notice.red{border-color:var(--nodata);background:var(--nodata-bg)}
+.foot{color:var(--muted);font-size:12.5px;line-height:1.6}
+.empty{color:var(--muted);font-size:13.5px;padding:18px 0}
+.theme{margin-left:auto;border:1px solid var(--line);background:none;color:var(--muted);border-radius:6px;padding:3px 8px;font:inherit;font-size:12px;cursor:pointer}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}
+  .list{max-height:220px}
+  main{padding:16px}
+  header{padding:14px 16px}
+  .grid{grid-template-columns:1fr 1fr}
+  .grid .now{grid-column:1/-1}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Texas Early Vote, Live</h1>
+  <span class="meta" id="meta">Loading…</span>
+  <button class="theme" id="theme" type="button">Theme</button>
+</header>
+<div class="wrap">
+  <aside>
+    <input id="q" type="search" placeholder="Search 254 counties" aria-label="Search counties">
+    <select id="filter" aria-label="Filter counties">
+      <option value="all">All counties</option>
+      <option value="intraday">Intraday counties</option>
+      <option value="held">Only counties with held data</option>
+    </select>
+    <div class="list" id="list" role="list"></div>
+  </aside>
+  <main id="main"><div class="empty">Loading data…</div></main>
+</div>
+<script>
+const YEARS = [2024, 2022, 2018];
+const COLOR = y => `var(--y${y})`;
+const fmt = n => n == null ? "—" : n.toLocaleString("en-US");
+const pct = (a, b) => (a - b) / b;
+const fmtPct = p => (p >= 0 ? "+" : "−") + Math.abs(p * 100).toFixed(1) + "%";
+const tfmt = iso => new Date(iso).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", timeZone: "America/Chicago"});
+const dfmt = iso => new Date(iso).toLocaleString("en-US", {month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago"});
+const dayOf = iso => { const d = new Date(new Date(iso).toLocaleString("en-US", {timeZone: "America/Chicago"})); return Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(2026, 9, 19)) / 864e5) + 1; };
+const minsCT = iso => { const p = new Date(iso).toLocaleTimeString("en-GB", {hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Chicago"}).split(":"); return +p[0] * 60 + +p[1]; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const title = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+let D, sel = "STATEWIDE", dayPick = null;
+
+// ---------- status ----------
+function status(c) {
+  if (c.tier === 2) {
+    const I = c.intraday, last = I.readings.at(-1);
+    const lastT = last ? new Date(last.scraped) : 0;
+    const heldAfter = I.held.filter(h => new Date(h.scraped) > lastT);
+    if (heldAfter.length) return {kind: "held", n: heldAfter.length, since: last && last.t, items: heldAfter};
+    if (I.last_attempt && I.last_attempt.status === "no_data") return {kind: "nodata", since: I.last_attempt.t, detail: I.last_attempt.detail};
+  }
+  const lastDay = lastIdx(c.daily) + 1;
+  const dh = c.daily_held.filter(h => h.day_n > lastDay);
+  if (dh.length) return {kind: "held", n: dh.length, daily: true, items: dh};
+  return {kind: "ok"};
+}
+const lastIdx = arr => { for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return i; return -1; };
+const hv = (c, y, n) => { const h = c.history[y]; const x = h && h[n - 1]; return x && x.cum != null && !x.flag ? x.cum : null; };
+const hwhy = (c, y, n) => { const h = c.history[y]; const x = h && h[n - 1];
+  if (!h) return y === 2018 ? "2018 SOS covers the 30 largest counties only" : "no SOS data";
+  if (x && x.flag) return `SOS ${y} data incomplete for this county`; return "no figure"; };
+
+// ---------- list ----------
+function renderList() {
+  const q = document.getElementById("q").value.trim().toUpperCase();
+  const f = document.getElementById("filter").value;
+  const btn = (key, label, extra = "") => {
+    const c = D.counties.find(x => x.name === key);
+    const st = c ? status(c) : {kind: "ok"};
+    const dot = st.kind === "held" ? '<span class="dot held" title="Held data"></span>' : st.kind === "nodata" ? '<span class="dot nodata" title="No data"></span>' : "";
+    return `<button role="listitem" data-k="${key}" aria-current="${sel === key}"><span>${esc(label)} ${extra}</span>${dot}</button>`;
+  };
+  let h = "";
+  if (!q && f === "all") h += btn("STATEWIDE", "Statewide");
+  const t2 = D.counties.filter(c => c.tier === 2), t1 = D.counties.filter(c => c.tier === 1);
+  const keep = c => (!q || c.name.includes(q)) && (f !== "held" || status(c).kind === "held") && (f !== "intraday" || c.tier === 2);
+  const a = t2.filter(keep), b = t1.filter(keep);
+  if (a.length) h += `<div class="grp">Intraday</div>` + a.map(c => btn(c.name, title(c.name), '<span class="tag">2h</span>')).join("");
+  if (b.length) h += `<div class="grp">Daily (SOS)</div>` + b.map(c => btn(c.name, title(c.name))).join("");
+  if (!h) h = `<div class="empty">No counties match.</div>`;
+  const el = document.getElementById("list"); el.innerHTML = h;
+  el.querySelectorAll("button").forEach(b => b.onclick = () => { sel = b.dataset.k; dayPick = null; location.hash = sel; renderList(); render(); });
+}
+
+// ---------- charts ----------
+function axisNice(max) { if (max <= 0) return 10; const p = Math.pow(10, Math.floor(Math.log10(max))); const m = max / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
+function kfmt(v) { return v >= 1e6 ? (v / 1e6).toFixed(v % 1e6 ? 1 : 0) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(v); }
+
+function dailyChart(c, isState) {
+  const W = 760, H = 270, L = 52, R = 16, T = 12, B = 30;
+  const series = {};
+  if (isState) {
+    for (const y of YEARS) { const h = D.statewide_history[y]; if (h && y !== 2018) series[y] = h.map(x => x && x.cum != null && !x.flag ? x.cum : null); }
+    series[2026] = D.statewide.map(r => r ? r.cum : null);
+  } else {
+    for (const y of YEARS) series[y] = Array.from({length: 12}, (_, i) => hv(c, y, i + 1));
+    series[2026] = c.daily;
+  }
+  let today = null;
+  if (!isState && c.tier === 2 && c.intraday.readings.length) {
+    const last = c.intraday.readings.at(-1), n = dayOf(last.t);
+    if (n >= 1 && n <= 12 && c.daily[n - 1] == null) today = {n, v: last.cum, t: last.t};
+  }
+  const all = Object.values(series).flat().filter(v => v != null).concat(today ? [today.v] : []);
+  if (!all.length) return `<div class="empty">No daily figures yet.</div>`;
+  const ymax = axisNice(Math.max(...all) * 1.05);
+  const x = n => L + (n - 1) * (W - L - R) / 11, y = v => T + (H - T - B) * (1 - v / ymax);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumulative in-person votes by day of early voting">`;
+  if (!isState && c.sos_check) for (const k of c.sos_check.filter(k => k.flag)) {
+    s += `<rect x="${x(k.day_n) - 14}" y="${T}" width="28" height="${H - T - B}" fill="url(#stripe)"><title>Day ${k.day_n}: last intraday reading ${fmt(k.intraday)} vs SOS ${fmt(k.sos)} (${fmtPct(k.diff)}). Differs by more than 5%.</title></rect>`;
+  }
+  s += `<defs><pattern id="stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="var(--stripe)"/></pattern></defs>`;
+  for (let i = 0; i <= 4; i++) { const v = ymax * i / 4; s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${kfmt(v)}</text>`; }
+  for (let n = 1; n <= 12; n++) s += `<text x="${x(n)}" y="${H - 10}" text-anchor="middle">D${n}</text>`;
+  for (const yr of [...YEARS.filter(y => series[y]).reverse(), 2026]) {
+    const pts = series[yr]; let d = "", pen = false;
+    pts.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? "L" : "M") + x(i + 1) + " " + y(v); pen = true; });
+    const w = yr === 2026 ? 3 : 1.75;
+    s += `<path d="${d}" fill="none" stroke="${COLOR(yr)}" stroke-width="${w}" stroke-linejoin="round"/>`;
+    pts.forEach((v, i) => { if (v != null) s += `<circle cx="${x(i + 1)}" cy="${y(v)}" r="${yr === 2026 ? 3.5 : 2.5}" fill="${COLOR(yr)}"><title>${yr} Day ${i + 1}: ${fmt(v)}</title></circle>`; });
+  }
+  if (today) s += `<circle cx="${x(today.n)}" cy="${y(today.v)}" r="5" fill="var(--panel)" stroke="var(--y2026)" stroke-width="2" stroke-dasharray="2 2"><title>2026 Day ${today.n} so far: ${fmt(today.v)} (intraday, ${tfmt(today.t)})</title></circle>`;
+  if (!isState) for (const h of c.daily_held) s += `<circle cx="${x(h.day_n)}" cy="${T + 6}" r="5" fill="none" stroke="var(--held)" stroke-width="2"><title>HELD: SOS Day ${h.day_n} value ${fmt(h.value)} rejected — ${esc(h.reason)}</title></circle>`;
+  s += `</svg>`;
+  const leg = [2026, ...YEARS.filter(y => series[y])].map(y => `<span><i style="border-color:${COLOR(y)}"></i>${y}</span>`).join("")
+    + (today ? `<span>◌ 2026 today so far (intraday)</span>` : "")
+    + (!isState && c.sos_check && c.sos_check.some(k => k.flag) ? `<span><span class="swatch" style="background:var(--stripe)"></span>intraday ≠ SOS by &gt;5%</span>` : "");
+  return s + `<div class="legend">${leg}</div>`;
+}
+
+function intradayChart(c, n) {
+  const I = c.intraday, date = new Date(Date.UTC(2026, 9, 18 + n)).toISOString().slice(0, 10);
+  const hrs = I.hours[date] || ["07:00", "19:00"];
+  const toM = s => +s.slice(0, 2) * 60 + +s.slice(3);
+  const x0 = toM(hrs[0]) - 30, x1 = toM(hrs[1]) + 90;
+  const reads = I.readings.filter(r => dayOf(r.t) === n);
+  const held = I.held.filter(h => dayOf(h.t || h.scraped) === n);
+  const nod = I.no_data.filter(a => dayOf(a.t) === n);
+  const prevEOD = I.readings.filter(r => dayOf(r.t) < n).at(-1);
+  const refs = YEARS.map(y => ({y, v: hv(c, y, n), prev: n > 1 ? hv(c, y, n - 1) : 0})).filter(r => r.v != null);
+  const wb = I.history.filter(h => h.day_n === n);
+  const vals = [...reads.map(r => r.cum), ...refs.map(r => r.v), ...wb.map(w => w.cum), prevEOD ? prevEOD.cum : 0];
+  const ymin = 0, ymax = axisNice(Math.max(1, ...vals) * 1.05);
+  const W = 760, H = 290, L = 52, R = 118, T = 12, B = 30;
+  const x = m => L + (Math.min(Math.max(m, x0), x1) - x0) * (W - L - R) / (x1 - x0), y = v => T + (H - T - B) * (1 - (v - ymin) / (ymax - ymin));
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Intraday cumulative in-person votes, Day ${n}">`;
+  s += `<rect x="${x(toM(hrs[0]))}" y="${T}" width="${x(toM(hrs[1])) - x(toM(hrs[0]))}" height="${H - T - B}" fill="var(--grid)" opacity=".45"><title>Polls open ${hrs[0]}–${hrs[1]}</title></rect>`;
+  for (let i = 0; i <= 4; i++) { const v = ymax * i / 4; s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${kfmt(v)}</text>`; }
+  for (let m = Math.ceil(x0 / 120) * 120; m <= x1; m += 120) { const hh = m / 60, lab = (hh % 12 || 12) + (hh < 12 ? "a" : "p"); s += `<text x="${x(m)}" y="${H - 10}" text-anchor="middle">${lab}</text>`; }
+  for (const r of refs) {
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(r.v)}" y2="${y(r.v)}" stroke="${COLOR(r.y)}" stroke-dasharray="5 4" stroke-width="1.5"><title>${r.y} full Day ${n} (SOS end of day): ${fmt(r.v)}</title></line>`;
+    s += `<text x="${W - R + 6}" y="${y(r.v) + 4}" style="fill:${COLOR(r.y)}">${r.y} EOD ${kfmt(r.v)}</text>`;
+  }
+  for (const w of wb) { const m = toM(w.time); s += `<rect x="${x(m) - 4}" y="${y(w.cum) - 4}" width="8" height="8" fill="${COLOR(w.year)}" transform="rotate(45 ${x(m)} ${y(w.cum)})"><title>${w.year} Day ${n} at ${w.time}: ${fmt(w.cum)} (Wayback snapshot)</title></rect>`; }
+  // 2026 accepted line (starts from last accepted reading of the prior day, carried to open).
+  const pts = reads.map(r => [x(minsCT(r.t)), y(r.cum), r]);
+  if (prevEOD) pts.unshift([x(toM(hrs[0])), y(prevEOD.cum), null]); else if (n === 1) pts.unshift([x(toM(hrs[0])), y(0), null]);
+  if (pts.length) s += `<path d="${pts.map((p, i) => (i ? "L" : "M") + p[0] + " " + p[1]).join("")}" fill="none" stroke="var(--y2026)" stroke-width="3" stroke-linejoin="round"/>`;
+  for (const [px, py, r] of pts) if (r) s += `<circle cx="${px}" cy="${py}" r="4" fill="var(--y2026)"><title>${tfmt(r.t)}: ${fmt(r.cum)}${r.lt ? ` · ${r.lr}/${r.lt} sites` : ""}</title></circle>`;
+  // Held readings: dashed continuation at the last valid level, hollow amber markers.
+  const lastPt = pts.at(-1);
+  const heldAfter = held.filter(h => !lastPt || !lastPt[2] || new Date(h.scraped) > new Date(lastPt[2].scraped));
+  if (heldAfter.length && lastPt) {
+    const xe = x(Math.max(...heldAfter.map(h => minsCT(h.t || h.scraped))));
+    s += `<line x1="${lastPt[0]}" y1="${lastPt[1]}" x2="${xe}" y2="${lastPt[1]}" stroke="var(--held)" stroke-width="2.5" stroke-dasharray="6 5"/>`;
+  }
+  for (const h of held) {
+    const px = x(minsCT(h.t || h.scraped)), py = lastPt ? lastPt[1] : y(0);
+    s += `<circle cx="${px}" cy="${py}" r="6" fill="var(--panel)" stroke="var(--held)" stroke-width="2.5"><title>HELD ${tfmt(h.t || h.scraped)}: rejected value ${fmt(h.value)} — ${esc(h.reason)}</title></circle>`;
+  }
+  for (const a of nod) { const px = x(minsCT(a.t)); s += `<line x1="${px}" x2="${px}" y1="${T}" y2="${H - B}" stroke="var(--nodata)" stroke-width="1.5" stroke-dasharray="2 3"/><text x="${px}" y="${T + 10}" text-anchor="middle" style="fill:var(--nodata);font-weight:700">×<title>NO DATA ${tfmt(a.t)}: ${esc(a.detail)}</title></text>`; }
+  s += `</svg>`;
+  const leg = `<span><i style="border-color:var(--y2026)"></i>2026 accepted readings</span>` + refs.map(r => `<span><i style="border-color:${COLOR(r.y)};border-top-style:dashed"></i>${r.y} end of Day ${n}</span>`).join("")
+    + (wb.length ? `<span>◆ same-hour snapshot (Wayback)</span>` : "")
+    + `<span style="color:var(--held)">○ held (not counted)</span><span style="color:var(--nodata)">× no data</span>`;
+  return s + `<div class="legend">${leg}</div>`;
+}
+
+// ---------- comparisons ----------
+function compareCards(c, isState) {
+  let out = "";
+  for (const y of YEARS) {
+    let v = null, basis = "", now = null, then = null, note = "";
+    if (isState) {
+      const n = lastIdx(D.statewide.map(r => r && r.cum)) + 1;
+      const row = n ? D.statewide[n - 1] : null, cmp = row && row.compare[y];
+      if (cmp) { now = cmp.now; then = cmp.then; basis = `SOS end of Day ${n} · ${cmp.counties} counties with data both years${y === 2018 ? " (2018 = top 30 only)" : ""}`; }
+      else note = n ? "no comparable counties" : "first SOS end-of-day figure posts tomorrow morning";
+    } else if (c.tier === 2 && c.intraday.readings.length) {
+      const r = c.intraday.readings.at(-1), n = dayOf(r.t), m = minsCT(r.t);
+      const wb = c.intraday.history.filter(h => h.year === y && h.day_n === n).map(h => ({...h, d: Math.abs((+h.time.slice(0, 2) * 60 + +h.time.slice(3)) - m)})).filter(h => h.d <= 60).sort((a, b) => a.d - b.d)[0];
+      now = r.cum;
+      if (wb) { then = wb.cum; basis = `same hour, Day ${n} (${wb.time} Wayback snapshot)`; }
+      else {
+        const eod = hv(c, y, n);
+        if (eod != null) { then = eod; basis = `vs <b>full</b> Day ${n} (SOS end of day). Day ${n} still in progress`; v = "eod"; }
+        else note = hwhy(c, y, n);
+      }
+    } else {
+      const n = lastIdx(c.daily) + 1;
+      if (n) { now = c.daily[n - 1]; then = hv(c, y, n); basis = `SOS end of Day ${n}`; if (then == null) note = hwhy(c, y, n); }
+      else note = "first SOS end-of-day figure posts tomorrow morning";
+    }
+    let body;
+    if (now != null && then != null) {
+      const p = pct(now, then);
+      body = v === "eod"
+        ? `<div class="v num">${fmt(then)}</div><div class="s">Today is at <b>${(now / then * 100).toFixed(0)}%</b> of it so far</div>`
+        : `<div class="v num"><span class="delta ${p >= 0 ? "up" : "down"}">${fmtPct(p)}</span></div><div class="s num">${fmt(now)} now vs ${fmt(then)}</div>`;
+    } else body = `<div class="v" style="color:var(--faint)">n/a</div>`;
+    out += `<div class="card cmp"><div class="k"><span class="swatch" style="background:${COLOR(y)}"></span>vs ${y}</div>${body}<div class="s">${basis || esc(note)}</div></div>`;
+  }
+  return out;
+}
+
+// ---------- views ----------
+function render() {
+  const m = document.getElementById("main");
+  if (sel === "STATEWIDE") return renderState(m);
+  const c = D.counties.find(x => x.name === sel); if (!c) { sel = "STATEWIDE"; return render(); }
+  const st = status(c);
+  const badge = st.kind === "held" ? `<span class="badge held">HELD</span>` : st.kind === "nodata" ? `<span class="badge nodata">NO DATA</span>` : `<span class="badge ok">OK</span>`;
+  const flagged = c.sos_check && c.sos_check.some(k => k.flag);
+  let h = `<div class="title"><h2>${title(c.name)} County</h2>${badge}${flagged ? '<span class="badge flag">INTRADAY ≠ SOS</span>' : ""}</div>`;
+  h += `<div class="sub">${c.tier === 2 ? "Intraday: county feed, first read 2.5 h after polls open, then every 2 h until 30 min after close." : "Daily: Texas SOS end-of-day figure, posted the following morning."} Registered voters: ${fmt(c.registered)}.</div>`;
+  if (st.kind === "held") h += `<div class="notice"><b>${st.n} reading${st.n > 1 ? "s" : ""} held.</b> ${st.daily ? "The SOS figure failed validation and is not shown." : `Showing the last valid reading${st.since ? ` (${tfmt(st.since)})` : ""}.`} ${st.items.map(i => esc(i.reason)).join("; ")}</div>`;
+  if (st.kind === "nodata") h += `<div class="notice red"><b>No data since ${dfmt(st.since)}.</b> The county source could not be read: ${esc(st.detail)}</div>`;
+
+  let main = "";
+  if (c.tier === 2 && c.intraday.readings.length) {
+    const r = c.intraday.readings.at(-1);
+    main = `<div class="card now ${st.kind === "held" ? "held" : st.kind === "nodata" ? "nodata" : ""}"><div class="k">In person so far ${st.kind === "held" ? '<span class="badge held" style="margin-left:4px">HELD</span>' : ""}</div><div class="v num">${fmt(r.cum)}</div><div class="s">${st.kind === "held" ? `last valid ${tfmt(r.t)}` : `as of ${dfmt(r.t)}`} · Day ${dayOf(r.t)}${r.lt ? ` · ${r.lr}/${r.lt} sites reporting` : ""}</div></div>`;
+  } else {
+    const n = lastIdx(c.daily) + 1;
+    main = `<div class="card now ${st.kind === "held" ? "held" : ""}"><div class="k">In person, SOS</div><div class="v num">${n ? fmt(c.daily[n - 1]) : "—"}</div><div class="s">${n ? `through end of Day ${n}` : "Day 1 figure posts tomorrow morning"}</div></div>`;
+  }
+  h += `<div class="grid">${main}${compareCards(c, false)}</div>`;
+
+  if (c.tier === 2) {
+    const days = [...new Set([...c.intraday.readings.map(r => dayOf(r.t)), ...c.intraday.held.map(r => dayOf(r.t || r.scraped)), ...c.intraday.no_data.map(r => dayOf(r.t))])].filter(n => n >= 1 && n <= 12).sort((a, b) => a - b);
+    if (dayPick == null || !days.includes(dayPick)) dayPick = days.at(-1) || 1;
+    h += `<div class="panel"><h3>Through the day</h3><div class="hint">Cumulative in-person votes. Dashed lines are each past year's end-of-day total for the same Day N; diamonds are same-hour snapshots where the Wayback Machine has one.</div>
+      <div class="chips">${days.map(n => `<button data-day="${n}" aria-pressed="${n === dayPick}">Day ${n}</button>`).join("")}</div>${intradayChart(c, dayPick)}</div>`;
+  }
+  h += `<div class="panel"><h3>By day of early voting</h3><div class="hint">SOS cumulative in-person votes at the end of each Day N. Past years are aligned by day of early voting, not calendar date.</div>${dailyChart(c, false)}</div>`;
+  if (c.tier === 2) h += readingsTable(c);
+  if (c.daily_held.length) h += `<div class="panel"><h3>Held SOS figures</h3><table><tr><th>Day</th><th class="r">Rejected value</th><th>Reason</th></tr>${c.daily_held.map(x => `<tr class="held"><td>Day ${x.day_n}</td><td class="r num">${fmt(x.value)}</td><td>${esc(x.reason)}</td></tr>`).join("")}</table></div>`;
+  h += foot();
+  m.innerHTML = h;
+  m.querySelectorAll("[data-day]").forEach(b => b.onclick = () => { dayPick = +b.dataset.day; render(); });
+}
+
+function readingsTable(c) {
+  const I = c.intraday;
+  const rows = [
+    ...I.readings.map(r => ({t: r.scraped, src: r.t, cls: "", st: "OK", v: fmt(r.cum), loc: r.lt ? `${r.lr}/${r.lt}` : "—", note: ""})),
+    ...I.held.map(r => ({t: r.scraped, src: r.t, cls: "held", st: "HELD", v: fmt(r.value), loc: "", note: r.reason})),
+    ...I.no_data.map(r => ({t: r.t, src: "", cls: "nodata", st: "NO DATA", v: "—", loc: "", note: r.detail})),
+  ].sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 40);
+  if (!rows.length) return "";
+  return `<div class="panel"><h3>Readings</h3><div class="hint">Held and no-data rows are never counted.</div><table><tr><th>Read at</th><th>Source updated</th><th>Status</th><th class="r">In person</th><th class="r">Sites</th><th>Note</th></tr>
+    ${rows.map(r => `<tr class="${r.cls}"><td>${dfmt(r.t)}</td><td>${r.src ? tfmt(r.src) : ""}</td><td>${r.st}</td><td class="r num">${r.v}</td><td class="r num">${r.loc}</td><td>${esc(r.note)}</td></tr>`).join("")}</table></div>`;
+}
+
+function renderState(m) {
+  const n = lastIdx(D.statewide.map(r => r && r.cum)) + 1, row = n ? D.statewide[n - 1] : null;
+  const held = D.counties.filter(c => status(c).kind === "held"), nod = D.counties.filter(c => status(c).kind === "nodata");
+  let h = `<div class="title"><h2>Statewide</h2>${held.length ? `<span class="badge held">${held.length} HELD</span>` : ""}${nod.length ? `<span class="badge nodata">${nod.length} NO DATA</span>` : ""}</div>`;
+  h += `<div class="sub">Sum of all 254 counties from the Texas SOS end-of-day figures. Each comparison uses only counties with a valid figure in both years.</div>`;
+  h += `<div class="grid"><div class="card now"><div class="k">In person, SOS</div><div class="v num">${row ? fmt(row.cum) : "—"}</div><div class="s">${row ? `through end of Day ${n} · ${row.counties} counties reported` : "Day 1 statewide figure posts tomorrow morning"}</div></div>${compareCards(null, true)}</div>`;
+  const t2 = D.counties.filter(c => c.tier === 2);
+  h += `<div class="panel"><h3>Intraday counties right now</h3><table><tr><th>County</th><th>Status</th><th class="r">In person</th><th>As of</th>${YEARS.slice(0, 2).map(y => `<th class="r">${y} full day</th>`).join("")}</tr>
+    ${t2.map(c => { const r = c.intraday.readings.at(-1), st = status(c), d = r ? dayOf(r.t) : null;
+      return `<tr class="${st.kind === "ok" ? "" : st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "ok" ? "OK" : st.kind === "held" ? "HELD" : "NO DATA"}</td><td class="r num">${r ? fmt(r.cum) : "—"}</td><td>${r ? `Day ${d}, ${tfmt(r.t)}` : ""}</td>${YEARS.slice(0, 2).map(y => { const v = d ? hv(c, y, d) : null; return `<td class="r num">${v != null && r ? `${fmt(v)} <span style="color:var(--muted)">(${(r.cum / v * 100).toFixed(0)}%)</span>` : "—"}</td>`; }).join("")}</tr>`; }).join("")}</table></div>`;
+  h += `<div class="panel"><h3>By day of early voting</h3><div class="hint">Statewide SOS cumulative in-person votes. 2018 isn't drawn because the SOS only published the 30 largest counties that year.</div>${dailyChart(null, true)}</div>`;
+  if (held.length || nod.length) h += `<div class="panel"><h3>Counties with held or missing data</h3><table><tr><th>County</th><th>Status</th><th>Detail</th></tr>${[...held, ...nod].map(c => { const st = status(c); return `<tr class="${st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "held" ? "HELD" : "NO DATA"}</td><td>${esc(st.kind === "held" ? st.items.map(i => i.reason).join("; ") : st.detail)}</td></tr>`; }).join("")}</table></div>`;
+  h += foot();
+  m.innerHTML = h;
+  m.querySelectorAll("a[data-k]").forEach(a => a.onclick = e => { e.preventDefault(); sel = a.dataset.k; dayPick = null; location.hash = sel; renderList(); render(); });
+}
+
+function foot() {
+  return `<div class="foot"><b>Sources.</b> Texas Secretary of State early-voting turnout (2026 live feed; 2024 &amp; 2022 from the SOS archive; 2018 SOS pages, 30 largest counties). Dallas County Vote Center Finder (ArcGIS). Travis County Clerk live turnout tracker (ElectionLink). In-person votes only; mail ballots are excluded.<br>
+  <b>Validation.</b> A reading is held, not shown, if it drops below the last valid count, jumps faster than 3× the fastest pace so far, exceeds registered voters, or reports more sites than exist. Nothing is estimated or corrected. Raw logs and rules: <a href="https://github.com/Seeker-Cliff/tx-early-vote-live">GitHub</a>.</div>`;
+}
+
+// ---------- boot ----------
+function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+try { applyTheme(localStorage.getItem("theme")); } catch (e) {}
+document.getElementById("theme").onclick = () => {
+  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const next = cur === "dark" ? "light" : "dark"; applyTheme(next); try { localStorage.setItem("theme", next); } catch (e) {}
+};
+document.getElementById("q").oninput = renderList;
+document.getElementById("filter").onchange = renderList;
+
+async function load() {
+  try {
+    const r = await fetch("data.json?ts=" + Date.now(), {cache: "no-store"});
+    D = await r.json();
+  } catch (e) { document.getElementById("main").innerHTML = `<div class="notice red">Could not load data.json: ${esc(e.message)}</div>`; return; }
+  document.getElementById("meta").textContent = `${D.day_n ? `Day ${D.day_n} of 12` : "Outside early voting"} · data rebuilt ${dfmt(D.generated_at)} CT · refreshes every 5 min`;
+  const k = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+  if (k && (k === "STATEWIDE" || D.counties.some(c => c.name === k))) sel = k;
+  renderList(); render();
+}
+load();
+setInterval(load, 5 * 60 * 1000);
+addEventListener("hashchange", () => {
+  const k = decodeURIComponent(location.hash.slice(1)).toUpperCase();
+  if (D && k && k !== sel && (k === "STATEWIDE" || D.counties.some(c => c.name === k))) { sel = k; dayPick = null; renderList(); render(); }
+});
+</script>
+</body>
+</html>
