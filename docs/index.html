@@ -177,7 +177,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&
 const title = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
 let D, sel = "STATEWIDE", dayPick = null;
-let t2Mode = "reg", t2Off = new Set(), t2Sort = "votes", howOpen = false;   // live-counties panel state
+let t2Mode = "reg", t2Off = new Set(), t2Sort = "votes", howOpen = false, dayScope = "all";   // live-counties panel state
 
 // ---------- status ----------
 function status(c) {
@@ -225,10 +225,18 @@ function renderList() {
 function axisNice(max) { if (max <= 0) return 10; const p = Math.pow(10, Math.floor(Math.log10(max))); const m = max / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p; }
 function kfmt(v) { return v >= 1e6 ? (v / 1e6).toFixed(v % 1e6 ? 1 : 0) + "M" : v >= 1e3 ? Math.round(v / 1e3) + "k" : String(v); }
 
-function dailyChart(c, isState) {
+// Sum of a group of counties per Day N; a day is drawn only when every county in the group has a figure.
+function groupSum(cs, f) {
+  return Array.from({length: 12}, (_, i) => { let t = 0; for (const c of cs) { const v = f(c, i + 1); if (v == null) return null; t += v; } return t; });
+}
+
+function dailyChart(c, isState, group) {
   const W = 760, H = 270, L = 52, R = 16, T = 12, B = 30;
   const series = {};
-  if (isState) {
+  if (group) {
+    for (const y of YEARS) { const s = groupSum(group, (k, n) => hv(k, y, n)); if (s.some(v => v != null)) series[y] = s; }
+    series[2026] = groupSum(group, (k, n) => k.daily[n - 1]);
+  } else if (isState) {
     for (const y of YEARS) { const h = D.statewide_history[y]; if (h && y !== 2018) series[y] = h.map(x => x && x.cum != null && !x.flag ? x.cum : null); }
     series[2026] = D.statewide.map(r => r ? r.cum : null);
   } else {
@@ -236,7 +244,12 @@ function dailyChart(c, isState) {
     series[2026] = c.daily;
   }
   let today = null;
-  if (!isState && c.tier === 2 && c.intraday.readings.length) {
+  if (group && group.length && group.every(k => k.intraday && k.intraday.readings.length)) {
+    // Group "today so far": only when every county's latest reading is from the same day.
+    const lasts = group.map(k => k.intraday.readings.at(-1)), n = dayOf(lasts[0].t);
+    if (n >= 1 && n <= 12 && lasts.every(r => dayOf(r.t) === n) && series[2026][n - 1] == null)
+      today = {n, v: lasts.reduce((a, r) => a + r.cum, 0), t: lasts.map(r => r.t).sort().at(-1)};
+  } else if (!isState && c.tier === 2 && c.intraday.readings.length) {
     const last = c.intraday.readings.at(-1), n = dayOf(last.t);
     if (n >= 1 && n <= 12 && c.daily[n - 1] == null) today = {n, v: last.cum, t: last.t};
   }
@@ -527,7 +540,15 @@ function renderState(m) {
   const cards = `<div class="grid"><div class="card now"><div class="k">In person, SOS</div><div class="v num">${row ? fmt(row.cum) : "—"}</div><div class="s">${row ? `through end of Day ${n} · ${row.counties} counties reported` : "Day 1 statewide figure posts tomorrow morning"}</div></div>${compareCards(null, true)}</div>`;
   // Until the first SOS end-of-day figure exists, the live counties are the only numbers: lead with them.
   h += row ? cards + livePanel() : livePanel() + cards;
-  h += `<div class="panel"><h3>By day of early voting</h3><div class="hint">Statewide SOS cumulative in-person votes. 2018 isn't drawn because the SOS only published the 30 largest counties that year.</div>${dailyChart(null, true)}</div>`;
+  const grp = D.counties.filter(c => c.tier === 2 && !t2Off.has(c.name));
+  const live = dayScope === "live";
+  const missing18 = grp.filter(c => !c.history[2018]).map(c => title(c.name));
+  h += `<div class="panel"><h3>By day of early voting</h3>
+    <div class="seg" role="group" aria-label="Which counties the chart adds up" style="margin:6px 0 8px"><button data-scope="all" aria-pressed="${!live}">All 254 counties</button><button data-scope="live" aria-pressed="${live}">Only our live counties (${grp.length})</button></div>
+    <div class="hint">${live
+      ? `Cumulative in-person votes added up across the live counties ticked above${grp.length ? ` (${grp.map(c => title(c.name)).join(", ")})` : ""}, from the SOS end-of-day figures, so every year compares the same counties. The dotted circle is today so far from the counties' own feeds. ${missing18.length ? `2018 isn't drawn: the SOS didn't publish ${missing18.join(", ")} that year.` : ""}`
+      : "Statewide SOS cumulative in-person votes. 2018 isn't drawn because the SOS only published the 30 largest counties that year."}</div>
+    ${live && !grp.length ? `<div class="empty">Tick at least one county in the live panel above.</div>` : dailyChart(null, true, live ? grp : null)}</div>`;
   if (held.length || nod.length) h += `<div class="panel"><h3>Counties with held or missing data</h3><table><tr><th>County</th><th>Status</th><th>Detail</th></tr>${[...held, ...nod].map(c => { const st = status(c); return `<tr class="${st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "held" ? "HELD" : "NO DATA"}</td><td>${esc(st.kind === "held" ? st.items.map(i => i.reason).join("; ") : st.detail)}</td></tr>`; }).join("")}</table></div>`;
   h += foot();
   const y0 = scrollY;
@@ -535,13 +556,14 @@ function renderState(m) {
   scrollTo(0, y0);
   m.querySelectorAll("a[data-k]").forEach(a => a.onclick = e => { e.preventDefault(); sel = a.dataset.k; dayPick = null; location.hash = sel; renderList(); render(); });
   m.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { t2Mode = b.dataset.mode; render(); });
+  m.querySelectorAll("[data-scope]").forEach(b => b.onclick = () => { dayScope = b.dataset.scope; render(); });
   m.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => { t2Sort = b.dataset.sort; render(); });
   const how = m.querySelector("details.how"); if (how) { how.open = howOpen; how.ontoggle = () => { howOpen = how.open; }; }
   m.querySelectorAll("[data-pick]").forEach(b => b.onchange = () => { b.checked ? t2Off.delete(b.dataset.pick) : t2Off.add(b.dataset.pick); render(); });
 }
 
 function foot() {
-  return `<div class="foot"><b>Sources.</b> Texas Secretary of State early-voting turnout (2026 live feed; 2024 &amp; 2022 from the SOS archive; 2018 SOS pages, 30 largest counties). Dallas County Vote Center Finder (ArcGIS). Travis County Clerk live turnout tracker (ElectionLink). In-person votes only; mail ballots are excluded.<br>
+  return `<div class="foot"><b>Sources.</b> Texas Secretary of State early-voting turnout (2026 live feed; 2024 &amp; 2022 from the SOS archive; 2018 SOS pages, 30 largest counties). Dallas County Vote Center Finder (ArcGIS). ElectionLink live turnout widgets run for Travis, Montgomery, Bell, Hays, McLennan, Ellis and Hockley counties. In-person votes only; mail ballots are excluded.<br>
   <b>Validation.</b> A reading is held, not shown, if it drops below the last valid count, jumps faster than 3× the fastest pace so far, exceeds registered voters, or reports more sites than exist. Nothing is estimated or corrected. Raw logs and rules: <a href="https://github.com/Seeker-Cliff/tx-early-vote-live">GitHub</a>.</div>`;
 }
 
