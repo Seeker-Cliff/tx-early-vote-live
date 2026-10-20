@@ -102,6 +102,7 @@ td input[type=checkbox]{accent-color:var(--y2026);margin:0;cursor:pointer}
 .dh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;margin-bottom:6px;font-size:14px}
 .dh span{color:var(--muted);font-size:12.5px}
 .drow .note{margin-top:6px}
+.ctlrow{display:flex;flex-wrap:wrap;gap:8px 10px;margin:6px 0 8px}
 /* live counties panel */
 .live-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
 .lede{font-size:16.5px;line-height:1.5;margin:8px 0 14px;max-width:62em;text-wrap:pretty}
@@ -200,6 +201,8 @@ const title = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
 let D, sel = "STATEWIDE", dayPick = null;
 let t2Mode = "reg", t2Off = new Set(), t2Sort = "votes", howOpen = false, dayScope = "all";   // live-counties panel state
+let dayView = "cum";   // By-day charts: "cum" (running total) or "daily" (votes cast each day)
+const dayViewSeg = () => `<div class="seg" role="group" aria-label="Running total or each day"><button data-dview="cum" aria-pressed="${dayView === "cum"}">Running total</button><button data-dview="daily" aria-pressed="${dayView === "daily"}">Each day</button></div>`;
 let bench = [2024, 2022];   // Statewide view: benchmark years to compare with
 
 // ---------- status ----------
@@ -276,6 +279,14 @@ function dailyChart(c, isState, group, yrs = YEARS) {
     const last = c.intraday.readings.at(-1), n = dayOf(last.t);
     if (n >= 1 && n <= 12 && c.daily[n - 1] == null) today = {n, v: last.cum, t: last.t};
   }
+  if (dayView === "daily") {
+    // Votes cast on each day = difference between consecutive end-of-day totals; a gap when a total is missing.
+    const per = a => a.map((v, i) => { if (i === 0) return v; const p = a[i - 1]; return v != null && p != null && v >= p ? v - p : null; });
+    const cum26 = series[2026];
+    for (const k of Object.keys(series)) series[k] = per(series[k]);
+    if (today) { const prev = today.n === 1 ? 0 : cum26[today.n - 2]; today = prev != null ? {...today, v: today.v - prev} : null; }
+    return dayBars(series, today, yrs, c, isState);
+  }
   const all = Object.values(series).flat().filter(v => v != null).concat(today ? [today.v] : []);
   if (!all.length) return `<div class="empty">No daily figures yet.</div>`;
   const ymax = axisNice(Math.max(...all) * 1.05);
@@ -300,6 +311,35 @@ function dailyChart(c, isState, group, yrs = YEARS) {
   const leg = [2026, ...yrs.filter(y => series[y])].map(y => `<span><i style="border-color:${COLOR(y)}"></i>${y}</span>`).join("")
     + (today ? `<span>◌ 2026 today so far (intraday)</span>` : "")
     + (!isState && c.sos_check && c.sos_check.some(k => k.flag) ? `<span><span class="swatch" style="background:var(--stripe)"></span>intraday ≠ SOS by &gt;5%</span>` : "");
+  return s + `<div class="legend">${leg}</div>`;
+}
+
+// Grouped bars: votes cast on each day of early voting, oldest year left, 2026 right.
+function dayBars(series, today, yrs, c, isState) {
+  const W = 760, H = 270, L = 52, R = 16, T = 12, B = 30;
+  const keys = [...yrs.filter(y => series[y]).sort((a, b) => a - b), 2026];
+  const all = keys.flatMap(k => series[k]).filter(v => v != null).concat(today ? [today.v] : []);
+  if (!all.length) return `<div class="empty">No daily figures yet.</div>`;
+  const ymax = axisNice(Math.max(...all) * 1.05);
+  const gw = (W - L - R) / 12, bw = Math.min(18, gw * .8 / keys.length);
+  const cx = n => L + (n - .5) * gw, y = v => T + (H - T - B) * (1 - v / ymax);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="In-person votes cast on each day of early voting">`;
+  s += `<defs><pattern id="hatch26" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.5" height="5" fill="var(--y2026)"/></pattern></defs>`;
+  for (let i = 0; i <= 4; i++) { const v = ymax * i / 4; s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${kfmt(v)}</text>`; }
+  for (let n = 1; n <= 12; n++) {
+    s += `<text x="${cx(n)}" y="${H - 10}" text-anchor="middle">D${n}</text>`;
+    keys.forEach((k, j) => {
+      let v = series[k][n - 1], so = false;
+      if (k === 2026 && v == null && today && today.n === n) { v = today.v; so = true; }
+      if (v == null) return;
+      const x0 = cx(n) - keys.length * bw / 2 + j * bw;
+      s += `<rect x="${x0 + .5}" y="${y(v)}" width="${bw - 1}" height="${Math.max(0, y(0) - y(v))}" rx="1.5" fill="${so ? "url(#hatch26)" : COLOR(k)}"${so ? ' stroke="var(--y2026)" stroke-width="1"' : ""}><title>${k} Day ${n}: ${fmt(v)} voted in person that day${so ? ` as of ${tfmt(today.t)}, from county feeds (SOS figure not in yet)` : ""}</title></rect>`;
+    });
+  }
+  if (!isState && c) for (const h of c.daily_held) s += `<circle cx="${cx(h.day_n)}" cy="${T + 6}" r="5" fill="none" stroke="var(--held)" stroke-width="2"><title>HELD: SOS Day ${h.day_n} value ${fmt(h.value)} rejected — ${esc(h.reason)}</title></circle>`;
+  s += `</svg>`;
+  const leg = [2026, ...yrs.filter(y => series[y])].map(y => `<span><span class="swatch" style="background:${COLOR(y)}"></span>${y}</span>`).join("")
+    + (today ? `<span><span class="swatch" style="border:1px solid var(--y2026);background:repeating-linear-gradient(45deg,var(--y2026) 0 2px,transparent 2px 4px)"></span>2026 from county feeds, SOS figure not in yet</span>` : "");
   return s + `<div class="legend">${leg}</div>`;
 }
 
@@ -417,7 +457,7 @@ function render() {
     h += `<div class="panel"><h3>Through the day</h3><div class="hint">Cumulative in-person votes. Dashed lines are each past year's end-of-day total for the same Day N; diamonds are same-hour snapshots where the Wayback Machine has one.</div>
       <div class="chips">${days.map(n => `<button data-day="${n}" aria-pressed="${n === dayPick}">Day ${n}</button>`).join("")}</div>${intradayChart(c, dayPick)}</div>`;
   }
-  h += `<div class="panel"><h3>By day of early voting</h3><div class="hint">SOS cumulative in-person votes at the end of each Day N. Past years are aligned by day of early voting, not calendar date.</div>${dailyChart(c, false)}</div>`;
+  h += `<div class="panel"><h3>By day of early voting</h3><div class="ctlrow">${dayViewSeg()}</div><div class="hint">${dayView === "daily" ? "In-person votes cast on each day (the change in the SOS end-of-day total). " : "SOS running total of in-person votes at the end of each Day N. "}Past years are aligned by day of early voting, not calendar date.</div>${dailyChart(c, false)}</div>`;
   if (c.demo && c.demo.cvap) {
     const tx = D.statewide_demo, row = (label, d) => `<div class="drow"><div class="dh"><b>${label}</b><span class="num">${fmt(d.cvap)} citizens 18+</span></div>${demoStack(d)}<div class="note">${RACE.map(([k, l]) => `<span class="dk"><i style="background:var(--r-${k})"></i>${l} <b class="num">${pc0(d[k] / d.cvap)}</b></span>`).join("")}</div></div>`;
     h += `<div class="panel"><h3>Who lives here</h3><div class="hint">Citizens 18 and older by race and ethnicity (Census Bureau, 2020–2024 American Community Survey). This is who is eligible to vote, not who has voted; Texas voter records don't include race. White, Black and AAPI exclude Hispanic; AAPI = Asian + Pacific Islander.</div>
@@ -428,6 +468,7 @@ function render() {
   h += foot();
   m.innerHTML = h;
   m.querySelectorAll("[data-day]").forEach(b => b.onclick = () => { dayPick = +b.dataset.day; render(); });
+  m.querySelectorAll("[data-dview]").forEach(b => b.onclick = () => { dayView = b.dataset.dview; const y0 = scrollY; render(); scrollTo(0, y0); });
 }
 
 function readingsTable(c) {
@@ -614,10 +655,10 @@ function renderState(m) {
   const live = dayScope === "live";
   const missing18 = grp.filter(c => !c.history[2018]).map(c => title(c.name));
   h += `<div class="panel"><h3>By day of early voting</h3>
-    <div class="seg" role="group" aria-label="Which counties the chart adds up" style="margin:6px 0 8px"><button data-scope="all" aria-pressed="${!live}">All 254 counties</button><button data-scope="live" aria-pressed="${live}">Only our live counties (${grp.length})</button></div>
+    <div class="ctlrow">${dayViewSeg()}<div class="seg" role="group" aria-label="Which counties the chart adds up"><button data-scope="all" aria-pressed="${!live}">All 254 counties</button><button data-scope="live" aria-pressed="${live}">Only our live counties (${grp.length})</button></div></div>
     <div class="hint">${live
-      ? `Cumulative in-person votes added up across the live counties ticked above${grp.length ? ` (${grp.map(c => title(c.name)).join(", ")})` : ""}, from the SOS end-of-day figures, so every year compares the same counties. The dotted circle is today so far from the counties' own feeds. ${missing18.length && bench.includes(2018) ? `2018 isn't drawn: the SOS didn't publish ${missing18.join(", ")} that year.` : ""}`
-      : `Statewide SOS cumulative in-person votes.${bench.includes(2018) ? " 2018 isn't drawn statewide because the SOS only published the 30 largest counties that year; switch to “Only our live counties” to see it." : ""}`}</div>
+      ? `${dayView === "daily" ? "In-person votes cast each day" : "Running total of in-person votes"}, added up across the live counties ticked above${grp.length ? ` (${grp.map(c => title(c.name)).join(", ")})` : ""}, from the SOS end-of-day figures, so every year compares the same counties. ${dayView === "daily" ? "The striped bar" : "The dotted circle"} is today from the counties' own feeds. ${missing18.length && bench.includes(2018) ? `2018 isn't drawn: the SOS didn't publish ${missing18.join(", ")} that year.` : ""}`
+      : `${dayView === "daily" ? "Statewide in-person votes cast each day (the change in the SOS end-of-day total)." : "Statewide SOS running total of in-person votes."}${bench.includes(2018) ? " 2018 isn't drawn statewide because the SOS only published the 30 largest counties that year; switch to “Only our live counties” to see it." : ""}`}</div>
     ${live && !grp.length ? `<div class="empty">Tick at least one county in the live panel above.</div>` : dailyChart(null, true, live ? grp : null, bench)}</div>`;
   if (held.length || nod.length) h += `<div class="panel"><h3>Counties with held or missing data</h3><table><tr><th>County</th><th>Status</th><th>Detail</th></tr>${[...held, ...nod].map(c => { const st = status(c); return `<tr class="${st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "held" ? "HELD" : "NO DATA"}</td><td>${esc(st.kind === "held" ? st.items.map(i => i.reason).join("; ") : st.detail)}</td></tr>`; }).join("")}</table></div>`;
   h += foot();
@@ -627,6 +668,7 @@ function renderState(m) {
   m.querySelectorAll("a[data-k]").forEach(a => a.onclick = e => { e.preventDefault(); sel = a.dataset.k; dayPick = null; location.hash = sel; renderList(); render(); });
   m.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { t2Mode = b.dataset.mode; render(); });
   m.querySelectorAll("[data-bench]").forEach(b => b.onclick = () => { const y = +b.dataset.bench; bench = bench.includes(y) ? bench.filter(v => v !== y) : [...bench, y].sort((p, q) => q - p); render(); });
+  m.querySelectorAll("[data-dview]").forEach(b => b.onclick = () => { dayView = b.dataset.dview; render(); });
   m.querySelectorAll("[data-scope]").forEach(b => b.onclick = () => { dayScope = b.dataset.scope; render(); });
   m.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => { t2Sort = b.dataset.sort; render(); });
   const how = m.querySelector("details.how"); if (how) { how.open = howOpen; how.ontoggle = () => { howOpen = how.open; }; }
