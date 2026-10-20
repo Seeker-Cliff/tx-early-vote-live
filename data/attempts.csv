@@ -44,3 +44,8 @@ HOCKLEY,2026-10-20T14:30:00-05:00,2026-10-20T14:35:18-05:00,no_data,SourceIncons
 DALLAS,2026-10-20T15:30:00-05:00,2026-10-20T15:35:39-05:00,ok,
 TRAVIS,2026-10-20T15:30:00-05:00,2026-10-20T15:35:39-05:00,ok,
 HAYS,2026-10-20T15:30:00-05:00,2026-10-20T15:35:39-05:00,ok,
+MONTGOMERY,2026-10-20T16:30:00-05:00,2026-10-20T16:36:11-05:00,no_data,SourceInconsistent: hourly check-ins for 10/19 sum 25583 != that day's total 13568
+BELL,2026-10-20T16:30:00-05:00,2026-10-20T16:36:11-05:00,no_data,SourceInconsistent: hourly check-ins for 10/19 sum 13721 != that day's total 7111
+MCLENNAN,2026-10-20T16:30:00-05:00,2026-10-20T16:36:11-05:00,no_data,SourceInconsistent: hourly check-ins for 10/19 sum 9576 != that day's total 4926
+ELLIS,2026-10-20T16:30:00-05:00,2026-10-20T16:36:11-05:00,no_data,SourceInconsistent: hourly check-ins for 10/19 sum 14020 != that day's total 7914
+HOCKLEY,2026-10-20T16:30:00-05:00,2026-10-20T16:36:11-05:00,no_data,SourceInconsistent: hourly check-ins for 10/19 sum 963 != that day's total 553
