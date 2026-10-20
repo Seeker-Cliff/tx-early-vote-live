@@ -10,7 +10,9 @@ Intraday (Tier 2):
   5. same source timestamp as the last accepted reading -> 'unchanged', not a new reading
 
 Daily (Tier 1, SOS): rules 1 and 3, plus a daily gain cap of max(3x the largest prior daily
-gain, 2% of registered + 25), or 15% of registered on Day 1.
+gain, 2% of registered + 25), or 15% of registered on Day 1. Also held: a figure under 10% of
+the same Day N in every past year on file (when that year had 500+ votes). The SOS file shows
+partial county submissions, e.g. Harris at 4 votes on Day 1 of 2026 against 126,473 in 2024.
 """
 from datetime import datetime, timedelta
 
@@ -71,10 +73,20 @@ def check_intraday(r, prev: list[dict], registered: int | None, hours: dict) -> 
     return None
 
 
-def check_daily(cum: int, registered: int, day: int, prior: list[int]) -> str | None:
-    """prior: accepted cumulative values for Day 1..day-1 (may be shorter if days missing)."""
+LOW_VS_PAST = 0.10   # a figure under 10% of every past year's same day looks like a partial submission
+LOW_MIN_PAST = 500   # ...only applied where those past years had at least this many votes
+
+
+def check_daily(cum: int, registered: int, day: int, prior: list[int],
+                past: dict[int, int] | None = None) -> str | None:
+    """prior: accepted cumulative values for Day 1..day-1 (may be shorter if days missing).
+    past: {year: cumulative in-person votes at the end of the same Day N} for earlier elections."""
     if cum < 0:
         return f"negative count {cum}"
+    big = {y: v for y, v in (past or {}).items() if v and v >= LOW_MIN_PAST}
+    if big and all(cum < LOW_VS_PAST * v for v in big.values()):
+        then = ", ".join(f"{v:,} in {y}" for y, v in sorted(big.items(), reverse=True))
+        return f"only {cum:,} votes, under 10% of the same day before ({then}); county submission looks incomplete"
     if registered and cum > registered:
         return f"count {cum:,} exceeds registered voters {registered:,}"
     if prior and cum < prior[-1]:

@@ -83,6 +83,12 @@ def run_daily(holds: list[str]) -> None:
     if reg:
         REGISTERED.write_text(json.dumps(reg, indent=0, sort_keys=True))
 
+    # Same-Day-N figures from past elections, for the incomplete-submission check.
+    past: dict[tuple[str, int], dict[int, int]] = {}
+    for h in store.read(DATA / "history" / "daily_history.csv"):
+        if h["cum_in_person"] and not h["flag"]:
+            past.setdefault((h["county"], int(h["day_n"])), {})[int(h["year"])] = int(h["cum_in_person"])
+
     old = {(r["day_n"], r["county"]): r for r in store.read(store.DAILY)}
     seen_q = {(q["county"], q["day_n"], q["cum_in_person"]) for q in store.read(store.QUARANTINE) if q["tier"] == "daily"}
     rows = []
@@ -96,7 +102,7 @@ def run_daily(holds: list[str]) -> None:
             cum = c["total_in_person_votes_for_election"]
             if cum == 0:
                 continue  # not reported yet (SOS posts zeros until the county submits)
-            reason = check_daily(cum, c["registered_voters"], n, accepted)
+            reason = check_daily(cum, c["registered_voters"], n, accepted, past.get((county, n)))
             if reason:
                 if (county, str(n), str(cum)) not in seen_q:
                     store.append(store.QUARANTINE, store.QUAR_FIELDS, {

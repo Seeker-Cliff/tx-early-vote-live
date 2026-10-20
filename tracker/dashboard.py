@@ -95,7 +95,7 @@ def build() -> None:
             continue
         row = {"day_n": n, "cum": sum(c["daily"][n - 1] for c in have), "counties": len(have), "compare": {}}
         for y in COMPARE_YEARS:
-            pairs = [(c["daily"][n - 1], c["history"][str(y)][n - 1]) for c in have
+            pairs = [(c["daily"][n - 1], c["history"][str(y)][n - 1]["cum"]) for c in have
                      if c["history"][str(y)] and c["history"][str(y)][n - 1]
                      and c["history"][str(y)][n - 1]["cum"] is not None and not c["history"][str(y)][n - 1]["flag"]]
             if pairs:
