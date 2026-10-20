@@ -38,6 +38,9 @@ def build() -> None:
     for r in store.read(store.DAILY):
         daily.setdefault(r["county"], [None] * 12)[int(r["day_n"]) - 1] = int(r["cum_in_person"])
 
+    # Census CVAP by race/ethnicity (built once per Census release by tracker/demographics.py).
+    demo = {r["county"]: {k: int(v) for k, v in r.items() if k != "county"} for r in store.read(store.DATA / "demographics.csv")}
+
     log, quar, attempts = store.read(store.LOG), store.read(store.QUARANTINE), store.read(store.ATTEMPTS)
     hours = load_hours()
 
@@ -47,6 +50,7 @@ def build() -> None:
         c = {
             "name": name, "tier": 2 if name in SCRAPERS else 1,
             "registered": reg.get(name),
+            "demo": demo.get(name),
             "daily": daily.get(name, [None] * 12),
             "history": {str(y): hist.get(name, {}).get(y) for y in COMPARE_YEARS},
             "daily_held": [{"day_n": int(q["day_n"]), "value": _int(q["cum_in_person"]), "reason": q["reason"],
@@ -107,6 +111,8 @@ def build() -> None:
         "statewide_history": {str(y): hist.get("STATEWIDE" if y != 2018 else "TOP30_TOTAL", {}).get(y)
                               for y in COMPARE_YEARS},
         "counties": counties,
+        "statewide_demo": {k: sum(d[k] for d in demo.values()) for k in next(iter(demo.values()), {})},
+        "demo_source": "U.S. Census Bureau, citizen voting-age population (CVAP), 2020-2024 ACS 5-year",
     }
     DOCS.mkdir(exist_ok=True)
     (DOCS / "data.json").write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
