@@ -8,19 +8,22 @@
 <style>
 :root{
   --bg:#f7f6f2; --panel:#ffffff; --ink:#1b1d21; --muted:#5f646d; --faint:#8b9099; --line:#e3e1da; --grid:#eeece6;
-  --y2026:#1f4fd1; --y2026-soft:#7f9be6; --y2024:#c2410c; --y2022:#0f766e; --y2018:#7c3aed;
+  --y2026:#1f4fd1; --y2026-soft:#7f9be6;
+  --r-white:#7b8794; --r-hispanic:#d69e2e; --r-black:#b83280; --r-aapi:#2f855a; --r-other:#cbd2d9; --y2024:#c2410c; --y2022:#0f766e; --y2018:#7c3aed;
   --held:#b45309; --held-bg:#fff4e0; --nodata:#b91c1c; --nodata-bg:#fdecec; --ok:#15803d; --ok-bg:#e8f6ec;
   --up:#15803d; --down:#b91c1c; --stripe:rgba(180,83,9,.16);
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#121417; --panel:#1a1d21; --ink:#eceae4; --muted:#a3a8b0; --faint:#7c818a; --line:#2c3036; --grid:#23272c;
-  --y2026:#7aa2ff; --y2026-soft:#3f5fae; --y2024:#fb923c; --y2022:#2dd4bf; --y2018:#b794f6;
+  --y2026:#7aa2ff; --y2026-soft:#3f5fae;
+  --r-white:#a0aec0; --r-hispanic:#ecc94b; --r-black:#ed64a6; --r-aapi:#48bb78; --r-other:#4a5568; --y2024:#fb923c; --y2022:#2dd4bf; --y2018:#b794f6;
   --held:#f5a524; --held-bg:#2e2412; --nodata:#f87171; --nodata-bg:#331a1a; --ok:#4ade80; --ok-bg:#15291c;
   --up:#4ade80; --down:#f87171; --stripe:rgba(245,165,36,.18);
 }}
 :root[data-theme="dark"]{
   --bg:#121417; --panel:#1a1d21; --ink:#eceae4; --muted:#a3a8b0; --faint:#7c818a; --line:#2c3036; --grid:#23272c;
-  --y2026:#7aa2ff; --y2026-soft:#3f5fae; --y2024:#fb923c; --y2022:#2dd4bf; --y2018:#b794f6;
+  --y2026:#7aa2ff; --y2026-soft:#3f5fae;
+  --r-white:#a0aec0; --r-hispanic:#ecc94b; --r-black:#ed64a6; --r-aapi:#48bb78; --r-other:#4a5568; --y2024:#fb923c; --y2022:#2dd4bf; --y2018:#b794f6;
   --held:#f5a524; --held-bg:#2e2412; --nodata:#f87171; --nodata-bg:#331a1a; --ok:#4ade80; --ok-bg:#15291c;
   --up:#4ade80; --down:#f87171; --stripe:rgba(245,165,36,.18);
 }
@@ -80,6 +83,25 @@ tr.held td{background:var(--held-bg)} tr.nodata td{background:var(--nodata-bg)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 td input[type=checkbox]{accent-color:var(--y2026);margin:0;cursor:pointer}
 .theme{margin-left:auto;border:1px solid var(--line);background:none;color:var(--muted);border-radius:6px;padding:3px 8px;font:inherit;font-size:12px;cursor:pointer}
+/* benchmarks + demographics */
+.bench{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0 0 16px}
+.bench .bl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:2px}
+.bench button{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:999px;padding:4px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.bench button i{width:10px;height:10px;border-radius:50%;opacity:.35}
+.bench button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
+.bench button[aria-pressed="true"] i{opacity:1}
+.bench button:focus-visible{outline:2px solid var(--y2026);outline-offset:1px}
+.bench .bn{font-size:12px;color:var(--faint);flex-basis:100%}
+.stack{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:1.5px;background:var(--panel)}
+.stack i{display:block;min-width:0}
+.dk{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--muted);margin-right:10px;white-space:nowrap}
+.dk i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.dk b{color:var(--ink)}
+.drow{padding:10px 0 4px}
+.drow + .drow{border-top:1px solid var(--line)}
+.dh{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;margin-bottom:6px;font-size:14px}
+.dh span{color:var(--muted);font-size:12.5px}
+.drow .note{margin-top:6px}
 /* live counties panel */
 .live-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
 .lede{font-size:16.5px;line-height:1.5;margin:8px 0 14px;max-width:62em;text-wrap:pretty}
@@ -178,6 +200,7 @@ const title = s => s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
 let D, sel = "STATEWIDE", dayPick = null;
 let t2Mode = "reg", t2Off = new Set(), t2Sort = "votes", howOpen = false, dayScope = "all";   // live-counties panel state
+let bench = [2024, 2022];   // Statewide view: benchmark years to compare with
 
 // ---------- status ----------
 function status(c) {
@@ -230,17 +253,17 @@ function groupSum(cs, f) {
   return Array.from({length: 12}, (_, i) => { let t = 0; for (const c of cs) { const v = f(c, i + 1); if (v == null) return null; t += v; } return t; });
 }
 
-function dailyChart(c, isState, group) {
+function dailyChart(c, isState, group, yrs = YEARS) {
   const W = 760, H = 270, L = 52, R = 16, T = 12, B = 30;
   const series = {};
   if (group) {
-    for (const y of YEARS) { const s = groupSum(group, (k, n) => hv(k, y, n)); if (s.some(v => v != null)) series[y] = s; }
+    for (const y of yrs) { const s = groupSum(group, (k, n) => hv(k, y, n)); if (s.some(v => v != null)) series[y] = s; }
     series[2026] = groupSum(group, (k, n) => k.daily[n - 1]);
   } else if (isState) {
-    for (const y of YEARS) { const h = D.statewide_history[y]; if (h && y !== 2018) series[y] = h.map(x => x && x.cum != null && !x.flag ? x.cum : null); }
+    for (const y of yrs) { const h = D.statewide_history[y]; if (h && y !== 2018) series[y] = h.map(x => x && x.cum != null && !x.flag ? x.cum : null); }
     series[2026] = D.statewide.map(r => r ? r.cum : null);
   } else {
-    for (const y of YEARS) series[y] = Array.from({length: 12}, (_, i) => hv(c, y, i + 1));
+    for (const y of yrs) series[y] = Array.from({length: 12}, (_, i) => hv(c, y, i + 1));
     series[2026] = c.daily;
   }
   let today = null;
@@ -264,7 +287,7 @@ function dailyChart(c, isState, group) {
   s += `<defs><pattern id="stripe" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="var(--stripe)"/></pattern></defs>`;
   for (let i = 0; i <= 4; i++) { const v = ymax * i / 4; s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${kfmt(v)}</text>`; }
   for (let n = 1; n <= 12; n++) s += `<text x="${x(n)}" y="${H - 10}" text-anchor="middle">D${n}</text>`;
-  for (const yr of [...YEARS.filter(y => series[y]).reverse(), 2026]) {
+  for (const yr of [...yrs.filter(y => series[y]).reverse(), 2026]) {
     const pts = series[yr]; let d = "", pen = false;
     pts.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? "L" : "M") + x(i + 1) + " " + y(v); pen = true; });
     const w = yr === 2026 ? 3 : 1.75;
@@ -274,7 +297,7 @@ function dailyChart(c, isState, group) {
   if (today) s += `<circle cx="${x(today.n)}" cy="${y(today.v)}" r="5" fill="var(--panel)" stroke="var(--y2026)" stroke-width="2" stroke-dasharray="2 2"><title>2026 Day ${today.n} so far: ${fmt(today.v)} (intraday, ${tfmt(today.t)})</title></circle>`;
   if (!isState) for (const h of c.daily_held) s += `<circle cx="${x(h.day_n)}" cy="${T + 6}" r="5" fill="none" stroke="var(--held)" stroke-width="2"><title>HELD: SOS Day ${h.day_n} value ${fmt(h.value)} rejected — ${esc(h.reason)}</title></circle>`;
   s += `</svg>`;
-  const leg = [2026, ...YEARS.filter(y => series[y])].map(y => `<span><i style="border-color:${COLOR(y)}"></i>${y}</span>`).join("")
+  const leg = [2026, ...yrs.filter(y => series[y])].map(y => `<span><i style="border-color:${COLOR(y)}"></i>${y}</span>`).join("")
     + (today ? `<span>◌ 2026 today so far (intraday)</span>` : "")
     + (!isState && c.sos_check && c.sos_check.some(k => k.flag) ? `<span><span class="swatch" style="background:var(--stripe)"></span>intraday ≠ SOS by &gt;5%</span>` : "");
   return s + `<div class="legend">${leg}</div>`;
@@ -329,9 +352,9 @@ function intradayChart(c, n) {
 }
 
 // ---------- comparisons ----------
-function compareCards(c, isState) {
+function compareCards(c, isState, yrs = YEARS) {
   let out = "";
-  for (const y of YEARS) {
+  for (const y of yrs) {
     let v = null, basis = "", now = null, then = null, note = "";
     if (isState) {
       const n = lastIdx(D.statewide.map(r => r && r.cum)) + 1;
@@ -395,6 +418,11 @@ function render() {
       <div class="chips">${days.map(n => `<button data-day="${n}" aria-pressed="${n === dayPick}">Day ${n}</button>`).join("")}</div>${intradayChart(c, dayPick)}</div>`;
   }
   h += `<div class="panel"><h3>By day of early voting</h3><div class="hint">SOS cumulative in-person votes at the end of each Day N. Past years are aligned by day of early voting, not calendar date.</div>${dailyChart(c, false)}</div>`;
+  if (c.demo && c.demo.cvap) {
+    const tx = D.statewide_demo, row = (label, d) => `<div class="drow"><div class="dh"><b>${label}</b><span class="num">${fmt(d.cvap)} citizens 18+</span></div>${demoStack(d)}<div class="note">${RACE.map(([k, l]) => `<span class="dk"><i style="background:var(--r-${k})"></i>${l} <b class="num">${pc0(d[k] / d.cvap)}</b></span>`).join("")}</div></div>`;
+    h += `<div class="panel"><h3>Who lives here</h3><div class="hint">Citizens 18 and older by race and ethnicity (Census Bureau, 2020–2024 American Community Survey). This is who is eligible to vote, not who has voted; Texas voter records don't include race. White, Black and AAPI exclude Hispanic; AAPI = Asian + Pacific Islander.</div>
+      ${row(`${title(c.name)} County`, c.demo)}${tx && tx.cvap ? row("Texas", tx) : ""}</div>`;
+  }
   if (c.tier === 2) h += readingsTable(c);
   if (c.daily_held.length) h += `<div class="panel"><h3>Held SOS figures</h3><table><tr><th>Day</th><th class="r">Rejected value</th><th>Reason</th></tr>${c.daily_held.map(x => `<tr class="held"><td>Day ${x.day_n}</td><td class="r num">${fmt(x.value)}</td><td>${esc(x.reason)}</td></tr>`).join("")}</table></div>`;
   h += foot();
@@ -424,6 +452,14 @@ const p1 = v => (v * 100).toFixed(1) + "%";
 const big = v => v >= 1e6 ? (v / 1e6).toFixed(2) + " million" : fmt(v);
 const niceScale = v => [.01, .02, .03, .04, .05, .06, .08, .1, .12, .15, .2, .25, .3, .4, .5, .6, .75, 1].find(s => s >= v * 1.08) || 1;
 
+// Race/ethnicity of citizens 18+ (Census CVAP). White/Black/AAPI are non-Hispanic.
+const RACE = [["white", "White"], ["hispanic", "Hispanic"], ["black", "Black"], ["aapi", "AAPI"], ["other", "Other"]];
+const pc0 = v => v > 0 && v < .005 ? "<1%" : Math.round(v * 100) + "%";
+const sumDemo = cs => { const o = {cvap: 0}; for (const [k] of RACE) o[k] = 0; for (const c of cs) if (c.demo) { o.cvap += c.demo.cvap; for (const [k] of RACE) o[k] += c.demo[k]; } return o; };
+const demoStack = d => !d || !d.cvap ? "" : `<div class="stack" role="img" aria-label="${RACE.map(([k, l]) => `${l} ${pc0(d[k] / d.cvap)}`).join(", ")}">${RACE.map(([k, l]) => `<i style="flex:${d[k]} 0 0;background:var(--r-${k})" title="${l}: ${p1(d[k] / d.cvap)} (${fmt(d[k])})"></i>`).join("")}</div>`;
+const demoText = d => !d || !d.cvap ? "" : RACE.slice(0, 4).map(([k, l]) => `<span class="dk"><i style="background:var(--r-${k})"></i>${l} <b class="num">${pc0(d[k] / d.cvap)}</b></span>`).join("");
+const short = v => v >= 1e6 ? (v / 1e6).toFixed(2) + "M" : v >= 1e4 ? Math.round(v / 1e3) + "k" : fmt(v);
+
 function liveRow(c) {
   const r = c.intraday.readings.at(-1), st = status(c), n = r ? dayOf(r.t) : null, now = ctNow();
   const hrs = n ? c.intraday.hours[dateOfDay(n)] : null, th = c.intraday.hours[now.date];
@@ -432,38 +468,58 @@ function liveRow(c) {
     : now.mins < toMin(th[1]) ? {cls: "open", txt: `Polls open until ${hm(th[1])}`}
     : {cls: "off", txt: `Polls closed at ${hm(th[1])}`};
   const final = !!(r && hrs && minsCT(r.t) >= toMin(hrs[1]));   // source updated at or after close: day is complete
-  const v24 = n ? hv(c, 2024, n) : null, v22 = n ? hv(c, 2022, n) : null;
-  const h24 = n && c.history[2024] && c.history[2024][n - 1], t24 = v24 != null && h24.reg ? v24 / h24.reg : null;
-  let pace = null;
-  if (r && v24) {
-    const k = r.cum / v24, tip = `2024 end of Day ${n}: ${fmt(v24)}${v22 ? ` · 2022: ${fmt(v22)}` : ""}`;
-    pace = final ? {cls: k >= 1 ? "up" : "down", txt: `${k >= 1 ? "▲" : "▼"} ${Math.abs((k - 1) * 100).toFixed(0)}% ${k >= 1 ? "above" : "below"} 2024's Day ${n}`, tip}
-      : k >= 1 ? {cls: "up", txt: `▲ Already past 2024's full Day ${n}`, tip}
-      : {cls: "prog", txt: `${(k * 100).toFixed(0)}% of 2024's full Day ${n} so far`, tip};
-    // Polls have closed but the after-close reading (30 min past close) isn't in yet.
-    if (!final && th && hrs === th && now.mins >= toMin(th[1])) { const due = toMin(th[1]) + 30; pace.txt += ` · final count due about ${hm(`${String(Math.floor(due / 60)).padStart(2, "0")}:${String(due % 60).padStart(2, "0")}`)}`; }
-  }
-  return {c, r, st, n, pol, final, v24, t24, pace, inc: !t2Off.has(c.name), tp: r ? r.cum / c.registered : null};
+  // Polls have closed but the after-close reading (30 min past close) isn't in yet.
+  let due = "";
+  if (r && !final && th && hrs === th && now.mins >= toMin(th[1])) { const m = toMin(th[1]) + 30; due = hm(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`); }
+  const bm = bench.map(y => {
+    const v = n ? hv(c, y, n) : null, hh = n && c.history[y] && c.history[y][n - 1];
+    // Line position: that year's vote count on today's scale (÷ today's registered voters), so a bar
+    // past the line always means more votes than that year. thenRate is that year's own turnout.
+    const t = v != null && c.registered ? v / c.registered : null, thenRate = v != null && hh && hh.reg ? v / hh.reg : null;
+    let pace = null;
+    if (r && v) {
+      const k = r.cum / v;
+      pace = final ? {cls: k >= 1 ? "up" : "down", txt: `${k >= 1 ? "▲" : "▼"} ${Math.abs((k - 1) * 100).toFixed(0)}% vs ${y}`}
+        : k >= 1 ? {cls: "up", txt: `▲ already past ${y}`} : {cls: "prog", txt: `${(k * 100).toFixed(0)}% of ${y}`};
+      pace.tip = `${y}, end of Day ${n}: ${fmt(v)} in person${thenRate != null ? ` (${p1(thenRate)} of that year's registered voters)` : ""}`;
+    }
+    return {y, v, t, thenRate, pace};
+  });
+  return {c, r, st, n, pol, final, due, bm, inc: !t2Off.has(c.name), tp: r ? r.cum / c.registered : null};
 }
 
 function livePanel() {
   const all = D.counties.filter(c => c.tier === 2).map(liveRow);
   if (!all.length) return "";
-  const share = t2Mode === "share";
+  const mode = t2Mode, share = mode === "share", demo = mode === "demo";
   const on = all.filter(x => x.inc && x.r);
   const tot = on.reduce((a, x) => a + x.r.cum, 0), reg = on.reduce((a, x) => a + x.c.registered, 0);
   for (const x of all) { x.sh = x.inc && x.r && tot ? x.r.cum / tot : null; x.rsh = x.inc && x.r && reg ? x.c.registered / reg : null; }
-  const cmp = on.filter(x => x.v24 != null), nowC = cmp.reduce((a, x) => a + x.r.cum, 0), then = cmp.reduce((a, x) => a + x.v24, 0);
   const days = [...new Set(on.map(x => x.n))], dayTxt = days.length === 1 ? `Day ${days[0]}` : "each county's latest day";
   const nOpen = on.filter(x => x.pol.cls === "open").length;
   const openTxt = !nOpen ? "" : nOpen === on.length ? ", and polls are still open" : `, and polls are still open in ${nOpen} of them`;
+  // Per benchmark year: compare only the checked counties that have a figure for that year.
+  const yrCmp = bench.map(y => { const cm = on.filter(x => x.bm.find(b => b.y === y).v != null);
+    return {y, n: cm.length, now: cm.reduce((a, x) => a + x.r.cum, 0), then: cm.reduce((a, x) => a + x.bm.find(b => b.y === y).v, 0)}; }).filter(p => p.n && p.then);
+  const picked = all.filter(x => x.inc), grpDemo = sumDemo(picked.map(x => x.c)), tx = D.statewide_demo;
 
   // Headline in plain words.
   let lede;
-  if (!on.length) lede = all.some(x => x.r) ? "Tick at least one county below to see totals." : "No live readings yet today. The first reading comes 2½ hours after polls open.";
+  if (demo) {
+    if (!grpDemo.cvap) lede = "Tick at least one county below to see who lives there.";
+    else {
+      lede = `The ${picked.length} checked counties are home to <b>${big(grpDemo.cvap)}</b> citizens of voting age: ${RACE.slice(0, 4).map(([k, l]) => `<b>${pc0(grpDemo[k] / grpDemo.cvap)}</b> ${l}`).join(", ")}.`;
+      if (tx && tx.cvap) {
+        const diffs = RACE.slice(0, 4).map(([k, l]) => ({l, d: grpDemo[k] / grpDemo.cvap - tx[k] / tx.cvap, a: grpDemo[k] / grpDemo.cvap, b: tx[k] / tx.cvap})).sort((p, q) => q.d - p.d);
+        const hi = diffs[0], lo = diffs.at(-1);
+        if (hi.d > .02) lede += ` Compared with Texas as a whole, they're more ${hi.l} (${pc0(hi.a)} vs ${pc0(hi.b)})${lo.d < -.02 ? ` and less ${lo.l} (${pc0(lo.a)} vs ${pc0(lo.b)})` : ""}.`;
+      }
+    }
+  } else if (!on.length) lede = all.some(x => x.r) ? "Tick at least one county below to see totals." : "No live readings yet today. The first reading comes 2½ hours after polls open.";
   else if (!share) {
     lede = `<b>${big(tot)}</b> people have voted in person so far in the <b>${on.length}</b> ${on.length === 1 ? "county" : "counties"} we read live: <b>${p1(tot / reg)}</b> of their ${big(reg)} registered voters.`;
-    if (then) lede += ` That's <b>${Math.round(nowC / then * 100)}%</b> of the in-person total ${cmp.length === on.length ? "these counties" : `${cmp.length} of them`} had reached by the end of ${dayTxt} in 2024${openTxt}.`;
+    if (yrCmp.length) lede += ` That's ${yrCmp.map(p => `<b>${Math.round(p.now / p.then * 100)}%</b> of their ${p.y} total${p.n < on.length ? ` (the ${p.n} with ${p.y} figures)` : ""}`).reduce((a, t, i, arr) => a + (i === 0 ? "" : i === arr.length - 1 ? (arr.length > 2 ? ", and " : " and ") : ", ") + t, "")} by the end of ${dayTxt}${openTxt}.`;
+    else if (!bench.length) lede += " Pick a year under “Compare with” to see how that stacks up.";
   } else {
     const top = [...on].sort((a, b) => b.sh - a.sh)[0], over = [...on].sort((a, b) => (b.sh - b.rsh) - (a.sh - a.rsh))[0];
     lede = `Of the <b>${big(tot)}</b> in-person votes cast so far across the ${on.length} checked counties, <b>${title(top.c.name)}</b> cast the most: <b>${p1(top.sh)}</b>`;
@@ -475,13 +531,17 @@ function livePanel() {
 
   const order = {votes: (a, b) => (b.r ? b.r.cum : -1) - (a.r ? a.r.cum : -1), turnout: (a, b) => (b.tp ?? -1) - (a.tp ?? -1), name: (a, b) => a.c.name.localeCompare(b.c.name)}[t2Sort];
   const rows = [...all].sort(order);
-  const scale = niceScale(Math.max(.001, ...rows.flatMap(x => share ? [x.sh || 0, x.rsh || 0] : [x.tp || 0, x.t24 || 0])));
+  const scale = niceScale(Math.max(.001, ...rows.flatMap(x => share ? [x.sh || 0, x.rsh || 0] : [x.tp || 0, ...x.bm.map(b => b.t || 0)])));
   const w = v => Math.min(100, v / scale * 100).toFixed(2);
+  const sep = '<span class="pace"> · </span>';
+  const paceLine = x => !x.r ? "" : (x.bm.length ? `<span class="pace">${x.final ? `Day ${x.n} final:` : `Day ${x.n} so far vs full day:`}</span> ` : "")
+    + x.bm.map(b => b.pace ? `<span class="pace ${b.pace.cls}" title="${b.pace.tip}">${b.pace.txt}</span>` : `<span class="pace">no ${b.y} figure</span>`).join(sep)
+    + (x.due ? `<span class="pace"> · final count due about ${x.due}</span>` : "");
 
   let h = `<div class="panel live"><div class="live-head"><h3>Live counties, right now</h3><span class="hint" style="margin:0">Read from each county's own feed every 2 hours while polls are open</span></div>
     <p class="lede">${lede}</p>
     <div class="live-ctl">
-      <div class="seg" role="group" aria-label="What the bars show"><button data-mode="reg" aria-pressed="${!share}">Turnout so far</button><button data-mode="share" aria-pressed="${share}">Share of the votes</button></div>
+      <div class="seg" role="group" aria-label="What the bars show">${[["reg", "Turnout so far"], ["share", "Share of the votes"], ["demo", "Who lives there"]].map(([k, l]) => `<button data-mode="${k}" aria-pressed="${mode === k}">${l}</button>`).join("")}</div>
       <div class="sorter" role="group" aria-label="Sort counties"><span>Sort</span>${[["votes", "Most votes"], ["turnout", "Highest turnout"], ["name", "A–Z"]].map(([k, l]) => `<button data-sort="${k}" aria-pressed="${t2Sort === k}">${l}</button>`).join("")}</div>
     </div>`;
 
@@ -490,43 +550,52 @@ function livePanel() {
     h += `<div class="comp" role="img" aria-label="Share of in-person votes by county">${segs.map((x, i) => `<div style="flex:${x.sh} 0 0;background:${i % 2 ? "var(--y2026-soft)" : "var(--y2026)"}" title="${title(x.c.name)}: ${p1(x.sh)} of the votes (${fmt(x.r.cum)})">${x.sh >= Math.max(.09, (x.c.name.length + 4) * .012) ? `<span>${title(x.c.name)} ${Math.round(x.sh * 100)}%</span>` : ""}</div>`).join("")}</div>`;
   }
 
-  h += `<div class="lrows"><div class="lrow lhdr" aria-hidden="true"><span class="pick"></span><span class="who">County</span><span class="barcol"><span>0</span><span>${Math.round(scale * 100)}%</span></span><span class="big">${share ? "Share" : "Turnout"}</span></div>`;
+  h += `<div class="lrows"><div class="lrow lhdr" aria-hidden="true"><span class="pick"></span><span class="who">County</span><span class="barcol">${demo ? "<span>Citizens 18+ by race and ethnicity</span>" : `<span>0</span><span>${Math.round(scale * 100)}%</span>`}</span><span class="big">${share ? "Share" : demo ? "Citizens 18+" : "Turnout"}</span></div>`;
   for (const x of rows) {
     const {c, r, st} = x, name = title(c.name);
     const badge = st.kind === "held" ? `<span class="badge held">HELD</span>` : st.kind === "nodata" ? `<span class="badge nodata">NO DATA</span>` : "";
     const meta = r ? `<b class="num">${fmt(r.cum)}</b> voted · updated ${ago(r.t)}${st.kind === "held" ? " (last valid)" : ""}` : "No reading yet";
     let bar, val, note;
-    if (!share) {
+    if (demo) {
+      bar = demoStack(c.demo); val = c.demo ? short(c.demo.cvap) : "—"; note = demoText(c.demo);
+    } else if (!share) {
       val = r ? p1(x.tp) : "—";
-      bar = r ? `<div class="fill" style="width:${w(x.tp)}%"></div>` + (x.t24 != null ? `<div class="tick" style="left:${w(x.t24)}%" title="2024: ${p1(x.t24)} of registered voters by the end of Day ${x.n} (${fmt(x.v24)} votes)"></div>` : "") : "";
-      note = x.pace ? `<span class="pace ${x.pace.cls}" title="${x.pace.tip}">${x.pace.txt}</span>` : r ? `<span class="pace">No 2024 figure for Day ${x.n}</span>` : "";
+      bar = `<div class="track">${r ? `<div class="fill" style="width:${w(x.tp)}%"></div>` + x.bm.filter(b => b.t != null).map(b => `<div class="tick" style="left:${w(b.t)}%;background:${COLOR(b.y)}" title="${b.y}: ${fmt(b.v)} in person by the end of Day ${x.n}${b.thenRate != null ? `, ${p1(b.thenRate)} turnout that year` : ""}"></div>`).join("") : ""}</div>`;
+      note = paceLine(x);
     } else {
       val = x.sh != null ? p1(x.sh) : "—";
-      bar = x.sh != null ? `<div class="fill" style="width:${w(x.sh)}%"></div><div class="tick reg" style="left:${w(x.rsh)}%" title="${p1(x.rsh)} of the registered voters in the checked counties"></div>` : "";
+      bar = `<div class="track">${x.sh != null ? `<div class="fill" style="width:${w(x.sh)}%"></div><div class="tick reg" style="left:${w(x.rsh)}%" title="${p1(x.rsh)} of the registered voters in the checked counties"></div>` : ""}</div>`;
       const d = x.sh != null ? (x.sh - x.rsh) * 100 : null;
       note = !x.inc ? `<span class="pace">Not counted. Tick the box to include it</span>` : d == null ? "" : `<span class="pace ${Math.abs(d) < .05 ? "" : d > 0 ? "up" : "down"}">${p1(x.rsh)} of registered voters · ${d >= 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(1)} pts ${d >= 0 ? "above" : "below"} its weight</span>`;
     }
     h += `<div class="lrow ${x.inc ? "" : "off"}">
       <label class="pick"><input type="checkbox" data-pick="${c.name}" ${x.inc ? "checked" : ""}><span class="sr">Count ${name} in the totals</span></label>
       <div class="who"><a href="#${c.name}" data-k="${c.name}">${name}</a>${badge}<div class="meta"><span class="pol ${x.pol.cls}"><i></i>${x.pol.txt}</span></div><div class="meta">${meta}</div></div>
-      <div class="barcol"><div class="track">${bar}</div><div class="note">${note}</div></div>
+      <div class="barcol">${bar}<div class="note">${note}</div></div>
       <div class="big num">${val}</div></div>`;
   }
-  if (on.length) {
+  if (demo && grpDemo.cvap) {
+    h += `<div class="lrow total"><span class="pick"></span><div class="who">All checked (${picked.length})</div><div class="barcol">${demoStack(grpDemo)}<div class="note">${demoText(grpDemo)}</div></div><div class="big num">${short(grpDemo.cvap)}</div></div>`;
+    if (tx && tx.cvap) h += `<div class="lrow"><span class="pick"></span><div class="who"><b>Texas</b><div class="meta">all 254 counties</div></div><div class="barcol">${demoStack(tx)}<div class="note">${demoText(tx)}</div></div><div class="big num">${short(tx.cvap)}</div></div>`;
+  } else if (!demo && on.length) {
     const combined = share ? "100%" : p1(tot / reg);
     h += `<div class="lrow total"><span class="pick"></span><div class="who">All checked (${on.length})<div class="meta"><b class="num">${fmt(tot)}</b> voted of ${fmt(reg)} registered</div></div>
-      <div class="barcol">${share ? "" : `<div class="track"><div class="fill" style="width:${w(tot / reg)}%"></div></div>`}<div class="note">${!share && then ? `<span class="pace ${nowC >= then ? "up" : "prog"}">${Math.round(nowC / then * 100)}% of the same counties' 2024 total by the end of ${dayTxt}</span>` : ""}</div></div>
+      <div class="barcol">${share ? "" : `<div class="track"><div class="fill" style="width:${w(tot / reg)}%"></div></div>`}<div class="note">${!share ? yrCmp.map(p => `<span class="pace ${p.now >= p.then ? "up" : "prog"}">${Math.round(p.now / p.then * 100)}% of ${p.y}${p.n < on.length ? ` (${p.n} counties)` : ""}</span>`).join(sep) : ""}</div></div>
       <div class="big num">${combined}</div></div>`;
   }
-  h += `</div><div class="legend">${share
+  h += `</div><div class="legend">${demo
+    ? RACE.map(([k, l]) => `<span><b class="sw fill" style="background:var(--r-${k})"></b>${l}</span>`).join("") + `<span>White, Black and AAPI exclude Hispanic; AAPI = Asian + Pacific Islander</span>`
+    : share
     ? `<span><b class="sw fill"></b>Share of the votes cast</span><span><b class="sw tick reg"></b>Share of the registered voters. A bar past its line means the county is voting above its weight</span>`
-    : `<span><b class="sw fill"></b>2026 so far</span><span><b class="sw tick"></b>2024, end of the same day of early voting</span><span><span class="dotlive"></span>polls open now</span>`}</div>
+    : `<span><b class="sw fill"></b>2026 so far</span>${bench.map(y => `<span><b class="sw tick" style="background:${COLOR(y)}"></b>${y}, end of the same day of early voting</span>`).join("")}<span><span class="dotlive"></span>polls open now</span>`}</div>
     <details class="how"><summary>How to read this</summary><ul>
       <li><b>Turnout</b> is in-person early votes so far divided by registered voters. Mail ballots are not included.</li>
-      <li>The <b>orange line</b> on each bar marks where that county stood at the end of the same day of early voting in 2024. A bar that reaches past its line is ahead of 2024.</li>
-      <li>While polls are open, today's count is compared with all of 2024's day, so "% of 2024's full day" keeps climbing until close. After close it turns into a final ▲ above / ▼ below.</li>
+      <li>The <b>coloured lines</b> on each bar mark how many people had voted in person by the end of the same day of early voting in each year picked under “Compare with”, drawn on today's scale. A bar that reaches past a line means more votes than that year. Hover a line to see that year's own turnout rate; counties that have grown a lot since 2018 can have more votes now but a lower rate.</li>
+      <li>While polls are open, today's count is compared with that year's whole day, so “% of 2024” keeps climbing until close. After close it turns into a final ▲ above / ▼ below.</li>
       <li><b>Share of the votes</b> splits the checked counties' combined votes. The grey line is each county's share of the registered voters, so a bar that passes its line means that county is turning out above its weight.</li>
-      <li>Untick a county to leave it out of the totals and shares.</li>
+      <li><b>Who lives there</b> shows citizens 18 and older by race and ethnicity, from the Census Bureau's 2020–2024 American Community Survey. It describes who is eligible, not who has voted: Texas voter records don't include race.</li>
+      <li>2018 figures exist only for the 30 largest counties, so a county without one shows “no 2018 figure”.</li>
+      <li>Untick a county to leave it out of the totals, shares and the chart below.</li>
       <li>Each county is read from its own official feed, so update times differ by up to two hours. Nothing is estimated: a reading that fails a check is held, and the last valid number stays.</li>
     </ul></details></div>`;
   return h;
@@ -537,7 +606,8 @@ function renderState(m) {
   const held = D.counties.filter(c => status(c).kind === "held"), nod = D.counties.filter(c => status(c).kind === "nodata");
   let h = `<div class="title"><h2>Statewide</h2>${held.length ? `<span class="badge held">${held.length} HELD</span>` : ""}${nod.length ? `<span class="badge nodata">${nod.length} NO DATA</span>` : ""}</div>`;
   h += `<div class="sub">${row ? "Sum of all 254 counties from the Texas SOS end-of-day figures. Each comparison uses only counties with a valid figure in both years." : "The Texas SOS posts each day's statewide figure the next morning. Until then, the live counties below are the freshest numbers."}</div>`;
-  const cards = `<div class="grid"><div class="card now"><div class="k">In person, SOS</div><div class="v num">${row ? fmt(row.cum) : "—"}</div><div class="s">${row ? `through end of Day ${n} · ${row.counties} counties reported` : "Day 1 statewide figure posts tomorrow morning"}</div></div>${compareCards(null, true)}</div>`;
+  const cards = `<div class="grid"><div class="card now"><div class="k">In person, SOS</div><div class="v num">${row ? fmt(row.cum) : "—"}</div><div class="s">${row ? `through end of Day ${n} · ${row.counties} counties reported` : "Day 1 statewide figure posts tomorrow morning"}</div></div>${compareCards(null, true, bench)}</div>`;
+  h += `<div class="bench" role="group" aria-label="Benchmark years"><span class="bl">Compare with</span>${YEARS.map(y => `<button data-bench="${y}" aria-pressed="${bench.includes(y)}"><i style="background:${COLOR(y)}"></i>${y}</button>`).join("")}<span class="bn">Applies to the live counties, the cards and the chart. 2018 covers only the 30 largest counties.</span></div>`;
   // Until the first SOS end-of-day figure exists, the live counties are the only numbers: lead with them.
   h += row ? cards + livePanel() : livePanel() + cards;
   const grp = D.counties.filter(c => c.tier === 2 && !t2Off.has(c.name));
@@ -546,9 +616,9 @@ function renderState(m) {
   h += `<div class="panel"><h3>By day of early voting</h3>
     <div class="seg" role="group" aria-label="Which counties the chart adds up" style="margin:6px 0 8px"><button data-scope="all" aria-pressed="${!live}">All 254 counties</button><button data-scope="live" aria-pressed="${live}">Only our live counties (${grp.length})</button></div>
     <div class="hint">${live
-      ? `Cumulative in-person votes added up across the live counties ticked above${grp.length ? ` (${grp.map(c => title(c.name)).join(", ")})` : ""}, from the SOS end-of-day figures, so every year compares the same counties. The dotted circle is today so far from the counties' own feeds. ${missing18.length ? `2018 isn't drawn: the SOS didn't publish ${missing18.join(", ")} that year.` : ""}`
-      : "Statewide SOS cumulative in-person votes. 2018 isn't drawn because the SOS only published the 30 largest counties that year."}</div>
-    ${live && !grp.length ? `<div class="empty">Tick at least one county in the live panel above.</div>` : dailyChart(null, true, live ? grp : null)}</div>`;
+      ? `Cumulative in-person votes added up across the live counties ticked above${grp.length ? ` (${grp.map(c => title(c.name)).join(", ")})` : ""}, from the SOS end-of-day figures, so every year compares the same counties. The dotted circle is today so far from the counties' own feeds. ${missing18.length && bench.includes(2018) ? `2018 isn't drawn: the SOS didn't publish ${missing18.join(", ")} that year.` : ""}`
+      : `Statewide SOS cumulative in-person votes.${bench.includes(2018) ? " 2018 isn't drawn statewide because the SOS only published the 30 largest counties that year; switch to “Only our live counties” to see it." : ""}`}</div>
+    ${live && !grp.length ? `<div class="empty">Tick at least one county in the live panel above.</div>` : dailyChart(null, true, live ? grp : null, bench)}</div>`;
   if (held.length || nod.length) h += `<div class="panel"><h3>Counties with held or missing data</h3><table><tr><th>County</th><th>Status</th><th>Detail</th></tr>${[...held, ...nod].map(c => { const st = status(c); return `<tr class="${st.kind}"><td><a href="#${c.name}" data-k="${c.name}">${title(c.name)}</a></td><td>${st.kind === "held" ? "HELD" : "NO DATA"}</td><td>${esc(st.kind === "held" ? st.items.map(i => i.reason).join("; ") : st.detail)}</td></tr>`; }).join("")}</table></div>`;
   h += foot();
   const y0 = scrollY;
@@ -556,6 +626,7 @@ function renderState(m) {
   scrollTo(0, y0);
   m.querySelectorAll("a[data-k]").forEach(a => a.onclick = e => { e.preventDefault(); sel = a.dataset.k; dayPick = null; location.hash = sel; renderList(); render(); });
   m.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { t2Mode = b.dataset.mode; render(); });
+  m.querySelectorAll("[data-bench]").forEach(b => b.onclick = () => { const y = +b.dataset.bench; bench = bench.includes(y) ? bench.filter(v => v !== y) : [...bench, y].sort((p, q) => q - p); render(); });
   m.querySelectorAll("[data-scope]").forEach(b => b.onclick = () => { dayScope = b.dataset.scope; render(); });
   m.querySelectorAll("[data-sort]").forEach(b => b.onclick = () => { t2Sort = b.dataset.sort; render(); });
   const how = m.querySelector("details.how"); if (how) { how.open = howOpen; how.ontoggle = () => { howOpen = how.open; }; }
@@ -563,7 +634,7 @@ function renderState(m) {
 }
 
 function foot() {
-  return `<div class="foot"><b>Sources.</b> Texas Secretary of State early-voting turnout (2026 live feed; 2024 &amp; 2022 from the SOS archive; 2018 SOS pages, 30 largest counties). Dallas County Vote Center Finder (ArcGIS). ElectionLink live turnout widgets run for Travis, Montgomery, Bell, Hays, McLennan, Ellis and Hockley counties. In-person votes only; mail ballots are excluded.<br>
+  return `<div class="foot"><b>Sources.</b> Texas Secretary of State early-voting turnout (2026 live feed; 2024 &amp; 2022 from the SOS archive; 2018 SOS pages, 30 largest counties). Dallas County Vote Center Finder (ArcGIS). ElectionLink live turnout widgets run for Travis, Montgomery, Bell, Hays, McLennan, Ellis and Hockley counties. In-person votes only; mail ballots are excluded. Demographics: U.S. Census Bureau, citizen voting-age population by race and ethnicity, 2020–2024 ACS 5-year.<br>
   <b>Validation.</b> A reading is held, not shown, if it drops below the last valid count, jumps faster than 3× the fastest pace so far, exceeds registered voters, or reports more sites than exist. Nothing is estimated or corrected. Raw logs and rules: <a href="https://github.com/Seeker-Cliff/tx-early-vote-live">GitHub</a>.</div>`;
 }
 
